@@ -18,7 +18,7 @@ import {
   onAuthChange, signOut
 } from "./lib/supabase";
 
-const USE_MOCK = true; // ← passer à false quand Supabase est configuré
+const USE_MOCK = false; // ← passer à false quand Supabase est configuré
 
 const T = {
   purple: { bg:"#EEEDFE", text:"#534AB7", border:"#AFA9EC", dark:"#3C3489" },
