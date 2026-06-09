@@ -71,7 +71,7 @@ export async function fetchCategories(space) {
 export async function createCategory(space, { key, label, icon, color }) {
   const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase.from("categories")
-    .insert([{ user_id: user.id, space, key, label, icon, color, position: Date.now() }])
+    .insert([{ user_id: user.id, space, key, label, icon, color, position: 0 }])
     .select().single();
   if (error) throw error;
   return data;
