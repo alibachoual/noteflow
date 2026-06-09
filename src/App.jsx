@@ -273,10 +273,11 @@ function DeleteConfirm({ note, onConfirm, onClose }) {
 
 // ─── Category manager ─────────────────────────────────────────────────────────
 function CategoryManager({ space, cats, onAdd, onDelete, onClose }) {
-  const [label, setLabel]     = useState("");
-  const [icon, setIcon]       = useState("ti-tag");
-  const [color, setColor]     = useState("purple");
-  const [adding, setAdding]   = useState(false);
+  const [label, setLabel]       = useState("");
+  const [icon, setIcon]         = useState("ti-tag");
+  const [color, setColor]       = useState("purple");
+  const [adding, setAdding]     = useState(false);
+  const [addError, setAddError] = useState(null);
 
   function slugify(s) {
     return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
@@ -285,9 +286,17 @@ function CategoryManager({ space, cats, onAdd, onDelete, onClose }) {
 
   async function handleAdd() {
     if (!label.trim()) return;
+    setAddError(null);
+    const key = slugify(label);
+    if (cats[key]) { setAddError("Une catégorie avec ce nom existe déjà."); return; }
     setAdding(true);
-    await onAdd({ key: slugify(label), label: label.trim(), icon, color });
-    setLabel(""); setAdding(false);
+    try {
+      await onAdd({ key, label: label.trim(), icon, color });
+      setLabel("");
+    } catch(e) {
+      setAddError(e.message || "Erreur lors de l\'ajout.");
+    }
+    setAdding(false);
   }
 
   return (
@@ -364,6 +373,13 @@ function CategoryManager({ space, cats, onAdd, onDelete, onClose }) {
               );
             })}
           </div>
+          {addError && (
+            <div style={{ padding:"8px 12px", background:"var(--nf-red-bg)",
+              color:"var(--nf-red-text)", borderRadius:8, fontSize:12 }}>
+              <i className="ti ti-alert-triangle" aria-hidden="true" style={{marginRight:6}} />
+              {addError}
+            </div>
+          )}
           <button onClick={handleAdd} className="nf-btn-primary"
             disabled={adding || !label.trim()} style={{ alignSelf:"flex-start" }}>
             <i className="ti ti-plus" aria-hidden="true" />
