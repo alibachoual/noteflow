@@ -82,6 +82,78 @@ const ICON_OPTIONS = [
   "ti-shopping-cart","ti-phone","ti-music","ti-camera","ti-star","ti-flag",
 ];
 
+// ─── CategorySelect — select + création inline ───────────────────────────────
+function CategorySelect({ value, onChange, cats, onCatCreated, style = {} }) {
+  const [creating, setCreating] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const inputRef = useRef();
+
+  function slugify(s) {
+    return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .replace(/[^a-z0-9]/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"");
+  }
+
+  useEffect(() => { if (creating) inputRef.current?.focus(); }, [creating]);
+
+  async function handleCreate() {
+    const label = newLabel.trim();
+    if (!label) return;
+    const key = slugify(label);
+    const cat = { key, label, icon:"ti-tag", color:"purple" };
+    await onCatCreated(cat);
+    onChange(key);
+    setNewLabel("");
+    setCreating(false);
+  }
+
+  if (creating) {
+    return (
+      <div style={{ display:"flex", gap:6, alignItems:"center", ...style }}>
+        <input
+          ref={inputRef}
+          className="nf-input"
+          value={newLabel}
+          onChange={e => setNewLabel(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter") handleCreate();
+            if (e.key === "Escape") { setCreating(false); setNewLabel(""); }
+          }}
+          placeholder="Nom de la catégorie…"
+          style={{ fontSize:13, flex:1 }}
+        />
+        <button onClick={handleCreate} className="nf-btn-primary"
+          style={{ padding:"6px 12px", flexShrink:0 }}
+          disabled={!newLabel.trim()}>
+          <i className="ti ti-check" aria-hidden="true" />
+        </button>
+        <button onClick={() => { setCreating(false); setNewLabel(""); }}
+          className="nf-btn-ghost" style={{ padding:"6px 10px", flexShrink:0 }}>
+          <i className="ti ti-x" aria-hidden="true" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display:"flex", gap:6, alignItems:"center", ...style }}>
+      <select className="nf-input" value={value} onChange={e => onChange(e.target.value)}
+        style={{ appearance:"none", flex:1, fontSize:13 }}>
+        {Object.keys(cats).length === 0 && (
+          <option value="" disabled>— aucune catégorie —</option>
+        )}
+        {Object.entries(cats).map(([key, meta]) => (
+          <option key={key} value={key}>{meta.label}</option>
+        ))}
+      </select>
+      <button onClick={() => setCreating(true)} className="nf-btn-ghost"
+        title="Nouvelle catégorie"
+        style={{ padding:"6px 10px", flexShrink:0, color:"var(--nf-accent)" }}>
+        <i className="ti ti-plus" aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
 // ─── Atoms ────────────────────────────────────────────────────────────────────
 function Tag({ category, cats }) {
   const meta = (cats || CATEGORIES)[category] || { label: category, icon:"ti-tag", color:"purple" };
@@ -169,7 +241,7 @@ function NoteCard({ note, onClick, cats, showSpace }) {
 }
 
 // ─── Edit modal ───────────────────────────────────────────────────────────────
-function EditModal({ note, cats, onSave, onClose }) {
+function EditModal({ note, cats, onSave, onClose, onCatCreated }) {
   const [title, setTitle]       = useState(note.title);
   const [body, setBody]         = useState(note.body);
   const [category, setCategory] = useState(note.category);
@@ -209,12 +281,10 @@ function EditModal({ note, cats, onSave, onClose }) {
         <div style={{ display:"flex", gap:10 }}>
           <div style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
             <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Catégorie</label>
-            <select className="nf-input" value={category} onChange={e => setCategory(e.target.value)}
-              style={{ appearance:"none" }}>
-              {Object.entries(cats).map(([key, meta]) => (
-                <option key={key} value={key}>{meta.label}</option>
-              ))}
-            </select>
+            <CategorySelect
+              value={category} onChange={setCategory}
+              cats={cats} onCatCreated={onCatCreated}
+            />
           </div>
           <div style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
             <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Priorité</label>
@@ -450,7 +520,7 @@ function NoteDetail({ note, cats, onClose, onMarkDone, onEdit, onDelete }) {
 }
 
 // ─── Compose ──────────────────────────────────────────────────────────────────
-function ComposeView({ space, cats, onSave }) {
+function ComposeView({ space, cats, onSave, onCatCreated }) {
   const [text, setText]   = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult]   = useState(null);
@@ -567,15 +637,11 @@ function ComposeView({ space, cats, onSave }) {
           <div style={{ display:"flex", gap:8 }}>
             <div className="nf-card" style={{ flex:1, cursor:"default" }}>
               <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:6 }}>Catégorie</div>
-              <select
-                className="nf-input"
+              <CategorySelect
                 value={result.category}
-                onChange={e => setResult(r => ({ ...r, category: e.target.value }))}
-                style={{ fontSize:12, padding:"4px 8px", appearance:"none" }}>
-                {Object.entries(cats).map(([key, meta]) => (
-                  <option key={key} value={key}>{meta.label}</option>
-                ))}
-              </select>
+                onChange={v => setResult(r => ({ ...r, category: v }))}
+                cats={cats} onCatCreated={onCatCreated}
+              />
             </div>
             <div className="nf-card" style={{ flex:1, cursor:"default" }}>
               <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:6 }}>Priorité</div>
@@ -1040,7 +1106,7 @@ export default function App() {
               onDelete={n => setDeleteNote(n)} />
           )}
           {view === "compose" && (
-            <ComposeView space={space} cats={cats} onSave={handleSave} />
+            <ComposeView space={space} cats={cats} onSave={handleSave} onCatCreated={handleAddCategory} />
           )}
           {isCatView && !selectedNote && (
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
@@ -1072,7 +1138,8 @@ export default function App() {
 
       {editNote && (
         <EditModal note={editNote} cats={cats}
-          onSave={handleEdit} onClose={() => setEditNote(null)} />
+          onSave={handleEdit} onClose={() => setEditNote(null)}
+          onCatCreated={handleAddCategory} />
       )}
       {deleteNote_ && (
         <DeleteConfirm note={deleteNote_}
