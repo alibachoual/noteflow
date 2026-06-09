@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { MOCK_NOTES, DEFAULT_CATEGORIES, CATEGORIES, setCategories, PRIORITIES } from "./data/mockNotes";
+import { MOCK_NOTES, CATEGORIES, setCategories, PRIORITIES } from "./data/mockNotes";
 import AuthScreen from "./components/AuthScreen";
 import { fetchNotes, createNote, updateNote, deleteNote, markNoteDone,
          fetchCategories, createCategory, deleteCategory,
@@ -891,7 +891,7 @@ export default function App() {
   const [allNotes, setAllNotes]         = useState([]);
   const [view, setView]                 = useState("all");
   const [space, setSpace]               = useState("pro");
-  const [cats, setCats]                 = useState(DEFAULT_CATEGORIES.pro);
+  const [cats, setCats]                 = useState({});
   const [selectedNote, setSelectedNote] = useState(null);
   const [editNote, setEditNote]         = useState(null);
   const [deleteNote_, setDeleteNote]    = useState(null);
@@ -915,16 +915,12 @@ export default function App() {
   useEffect(() => {
     if (USE_MOCK) {
       setAllNotes(MOCK_NOTES);
-      setCats(DEFAULT_CATEGORIES[space]);
+      setCats({});
       return;
     }
     if (!user) return;
     fetchNotes().then(setAllNotes);
-    fetchCategories(space).then(c => {
-      // Si aucune catégorie en base, garder les défauts le temps que l'user en crée
-      if (Object.keys(c).length > 0) { setCats(c); setCategories(c); }
-      else { setCats(DEFAULT_CATEGORIES[space]); setCategories(DEFAULT_CATEGORIES[space]); }
-    });
+    fetchCategories(space).then(c => { setCats(c); setCategories(c); });
   }, [space, user]);
 
   useEffect(() => {
