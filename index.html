@@ -9,13 +9,48 @@
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       html, body, #root { height: 100%; }
       body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-      button { font-family: inherit; }
-      textarea { font-family: inherit; }
-      input { font-family: inherit; }
-      ::-webkit-scrollbar { width: 5px; }
+      button, textarea, input { font-family: inherit; }
+      ::-webkit-scrollbar { width: 4px; }
       ::-webkit-scrollbar-track { background: transparent; }
-      ::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+      ::-webkit-scrollbar-thumb { background: var(--nf-border, #ccc); border-radius: 4px; }
     </style>
+    <!-- Applique le thème AVANT le premier render React pour éviter le flash blanc/noir -->
+    <script>
+      (function() {
+        var LIGHT = {
+          "--nf-bg-primary":"#ffffff","--nf-bg-secondary":"#f7f7f5","--nf-bg-tertiary":"#f0efec",
+          "--nf-text-primary":"#111110","--nf-text-secondary":"#6f6e69","--nf-text-tertiary":"#a8a69f",
+          "--nf-border":"rgba(0,0,0,0.08)","--nf-border-hover":"rgba(0,0,0,0.16)",
+          "--nf-accent":"#534AB7","--nf-accent-hover":"#3C3489","--nf-accent-subtle":"#EEEDFE",
+          "--nf-purple-bg":"#EEEDFE","--nf-purple-text":"#534AB7",
+          "--nf-teal-bg":"#E1F5EE","--nf-teal-text":"#0F6E56",
+          "--nf-blue-bg":"#E6F1FB","--nf-blue-text":"#185FA5",
+          "--nf-amber-bg":"#FAEEDA","--nf-amber-text":"#854F0B",
+          "--nf-red-bg":"#FCEBEB","--nf-red-text":"#A32D2D","--nf-red-border":"#F09595","--nf-red-dark":"#791F1F",
+          "--nf-green-bg":"#EAF3DE","--nf-green-text":"#3B6D11"
+        };
+        var DARK = {
+          "--nf-bg-primary":"#1c1c1e","--nf-bg-secondary":"#141414","--nf-bg-tertiary":"#0e0e0f",
+          "--nf-text-primary":"#ededec","--nf-text-secondary":"#9b9a96","--nf-text-tertiary":"#616060",
+          "--nf-border":"rgba(255,255,255,0.08)","--nf-border-hover":"rgba(255,255,255,0.15)",
+          "--nf-accent":"#7F77DD","--nf-accent-hover":"#AFA9EC","--nf-accent-subtle":"#26215C",
+          "--nf-purple-bg":"#26215C","--nf-purple-text":"#AFA9EC",
+          "--nf-teal-bg":"#04342C","--nf-teal-text":"#5DCAA5",
+          "--nf-blue-bg":"#042C53","--nf-blue-text":"#85B7EB",
+          "--nf-amber-bg":"#412402","--nf-amber-text":"#FAC775",
+          "--nf-red-bg":"#501313","--nf-red-text":"#F09595","--nf-red-border":"#791F1F","--nf-red-dark":"#F7C1C1",
+          "--nf-green-bg":"#173404","--nf-green-text":"#C0DD97"
+        };
+        var saved = localStorage.getItem("nf-theme");
+        var mode = saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+        var vars = mode === "dark" ? DARK : LIGHT;
+        var root = document.documentElement;
+        Object.keys(vars).forEach(function(k) { root.style.setProperty(k, vars[k]); });
+        root.setAttribute("data-theme", mode);
+        // Fond immédiat pour éviter le flash
+        root.style.background = vars["--nf-bg-tertiary"];
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
