@@ -449,34 +449,17 @@ function ComposeView({ space, cats, onSave }) {
     if (!text.trim()) { taRef.current?.focus(); return; }
     setLoading(true); setResult(null); setError(null);
     try {
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
+      const resp = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model:"claude-sonnet-4-20250514", max_tokens:1000,
-          messages:[{ role:"user", content:
-            `Tu es l'IA de NoteFlow (espace : ${space === "pro" ? "professionnel" : "personnel"}).
-Analyse cette note et retourne UNIQUEMENT un objet JSON valide, sans markdown.
-
-Note brute : "${text}"
-
-Catégories disponibles : ${catKeys}
-
-Format JSON :
-{
-  "title": "titre court (max 10 mots)",
-  "body": "note reformulée (2-3 phrases)",
-  "category": "<une des catégories disponibles>",
-  "priority": "haute | moyenne | basse",
-  "dueLabel": "Aujourd'hui | Demain | Cette semaine | Ce mois | Pas d'échéance",
-  "dueUrgent": true/false,
-  "actions": ["action 1", "action 2", "action 3"]
-}`
-          }]
+          text,
+          space,
+          categories: Object.keys(cats),
         })
       });
-      const data = await resp.json();
-      const raw = data.content?.find(b => b.type === "text")?.text || "";
-      setResult(JSON.parse(raw.replace(/```json|```/g,"").trim()));
+      if (!resp.ok) throw new Error(`Erreur ${resp.status}`);
+      setResult(await resp.json());
     } catch { setError("Impossible d'analyser la note. Vérifie ta connexion."); }
     setLoading(false);
   }
