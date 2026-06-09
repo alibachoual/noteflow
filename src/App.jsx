@@ -920,7 +920,11 @@ export default function App() {
     }
     if (!user) return;
     fetchNotes().then(setAllNotes);
-    fetchCategories(space).then(c => { setCats(c); setCategories(c); });
+    fetchCategories(space).then(c => {
+      // Si aucune catégorie en base, garder les défauts le temps que l'user en crée
+      if (Object.keys(c).length > 0) { setCats(c); setCategories(c); }
+      else { setCats(DEFAULT_CATEGORIES[space]); setCategories(DEFAULT_CATEGORIES[space]); }
+    });
   }, [space, user]);
 
   useEffect(() => {
