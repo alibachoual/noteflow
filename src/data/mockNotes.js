@@ -1,99 +1,82 @@
-export const MOCK_NOTES = [
-  {
-    id: 1,
-    title: "Valider le planning de livraison avec le client",
-    body: "Revoir les jalons Q3 et anticiper les risques de dérive avant la réunion de vendredi.",
-    raw: "faut valider le planning de livraison avec le client avant vendredi, y'a des risques de dérive sur Q3",
-    category: "client",
-    priority: "haute",
-    due: "2026-06-10",
-    dueLabel: "Demain",
-    dueUrgent: true,
-    actions: ["Envoyer un email de confirmation à Lucas", "Préparer le tableau des jalons Q3", "Prévoir 30 min avant la réunion"],
-    createdAt: "2026-06-09T09:14:00",
-    done: false,
+// ─── Catégories fixes par espace (utilisées en mode mock) ─────────────────────
+export const DEFAULT_CATEGORIES = {
+  pro: {
+    mission: { label:"Mission", icon:"ti-briefcase", color:"purple" },
+    client:  { label:"Client",  icon:"ti-users",     color:"teal"   },
+    reunion: { label:"Réunion", icon:"ti-video",      color:"blue"   },
+    idee:    { label:"Idée",    icon:"ti-bulb",       color:"amber"  },
   },
-  {
-    id: 2,
-    title: "CR réunion backlog — sprint 12",
-    body: "Décisions : sortir la feature notifications du scope, prioriser le moteur de recherche pour la démo client du 15.",
-    raw: "réunion backlog sprint 12 - on enlève les notifs, on met le moteur de recherche en priorité pour la démo du 15",
-    category: "reunion",
-    priority: "moyenne",
-    due: "2026-06-12",
-    dueLabel: "12 juin",
-    dueUrgent: false,
-    actions: ["Partager le CR à l'équipe", "Mettre à jour le backlog Jira", "Informer le client du changement de scope"],
-    createdAt: "2026-06-09T11:30:00",
-    done: false,
+  perso: {
+    maison:  { label:"Maison",       icon:"ti-home",       color:"teal"   },
+    finances:{ label:"Finances",     icon:"ti-coin",       color:"green"  },
+    famille: { label:"Famille",      icon:"ti-heart",      color:"purple" },
+    loisirs: { label:"Loisirs",      icon:"ti-confetti",   color:"amber"  },
   },
-  {
-    id: 3,
-    title: "Idée : dashboard de suivi de vélocité d'équipe",
-    body: "Visualiser les sprints passés, comparer aux estimations, détecter les dettes techniques récurrentes.",
-    raw: "idée dashboard vélocité pour voir les sprints passés vs estimations et les dettes récurrentes",
-    category: "idee",
-    priority: "basse",
-    due: null,
-    dueLabel: "Pas d'échéance",
-    dueUrgent: false,
-    actions: ["Explorer les outils existants", "Faire une démo rapide en React", "Soumettre l'idée à l'équipe"],
-    createdAt: "2026-06-08T16:45:00",
-    done: false,
-  },
-  {
-    id: 4,
-    title: "Rédiger le compte-rendu d'avancement mensuel",
-    body: "Synthèse des livrables de mai, points bloquants identifiés, objectifs juin.",
-    raw: "faut que je fasse le CR mensuel aujourd'hui, synthèse mai + bloquants + objectifs juin",
-    category: "mission",
-    priority: "haute",
-    due: "2026-06-09",
-    dueLabel: "Aujourd'hui",
-    dueUrgent: true,
-    actions: ["Récupérer les métriques de mai", "Rédiger la synthèse (30 min)", "Envoyer avant 18h"],
-    createdAt: "2026-06-09T08:00:00",
-    done: false,
-  },
-  {
-    id: 5,
-    title: "Préparer les questions pour la sprint review",
-    body: "Points à aborder : couverture de test, dette technique accumulée, plan de stabilisation.",
-    raw: "préparer mes questions pour la sprint review vendredi - tests, dette technique, stabilisation",
-    category: "reunion",
-    priority: "moyenne",
-    due: "2026-06-12",
-    dueLabel: "12 juin",
-    dueUrgent: false,
-    actions: ["Lister les points ouverts", "Consulter le backlog", "Partager l'ordre du jour à l'équipe"],
-    createdAt: "2026-06-08T14:20:00",
-    done: false,
-  },
-  {
-    id: 6,
-    title: "Répondre à Lucas — relance planning",
-    body: "Lucas attend une confirmation sur les ressources disponibles en juillet. Pas de réponse depuis 3 jours.",
-    raw: "lucas attend une réponse sur les ressources juillet depuis 3 jours faut que je réponde",
-    category: "client",
-    priority: "haute",
-    due: "2026-06-09",
-    dueLabel: "Aujourd'hui",
-    dueUrgent: true,
-    actions: ["Vérifier le planning RH juillet", "Rédiger la réponse email", "Confirmer la disponibilité de l'équipe"],
-    createdAt: "2026-06-07T10:00:00",
-    done: false,
-  },
-];
-
-export const CATEGORIES = {
-  mission: { label: "Mission", icon: "ti-briefcase", color: "purple" },
-  client:  { label: "Client",  icon: "ti-users",    color: "teal"   },
-  reunion: { label: "Réunion", icon: "ti-video",     color: "blue"   },
-  idee:    { label: "Idée",    icon: "ti-bulb",      color: "amber"  },
 };
+
+// Alias global utilisé partout dans l'appli (remplacé dynamiquement en mode Supabase)
+export let CATEGORIES = { ...DEFAULT_CATEGORIES.pro };
+
+export function setCategories(cats) {
+  Object.keys(CATEGORIES).forEach(k => delete CATEGORIES[k]);
+  Object.assign(CATEGORIES, cats);
+}
 
 export const PRIORITIES = {
-  haute:   { label: "Haute",   icon: "ti-flame",     color: "red"    },
-  moyenne: { label: "Moyenne", icon: "ti-minus",     color: "amber"  },
-  basse:   { label: "Basse",   icon: "ti-arrow-down",color: "green"  },
+  haute:   { label:"Haute",   icon:"ti-flame",      color:"red"   },
+  moyenne: { label:"Moyenne", icon:"ti-minus",       color:"amber" },
+  basse:   { label:"Basse",   icon:"ti-arrow-down",  color:"green" },
 };
+
+export const MOCK_NOTES = [
+  {
+    id:1, space:"pro",
+    title:"Valider le planning de livraison avec le client",
+    body:"Revoir les jalons Q3 et anticiper les risques de dérive avant la réunion de vendredi.",
+    raw:"faut valider le planning de livraison avec le client avant vendredi",
+    category:"client", priority:"haute",
+    due:"2026-06-10", dueLabel:"Demain", dueUrgent:true,
+    actions:["Envoyer un email à Lucas","Préparer le tableau des jalons Q3","Prévoir 30 min avant"],
+    createdAt:"2026-06-09T09:14:00", done:false,
+  },
+  {
+    id:2, space:"pro",
+    title:"CR réunion backlog — sprint 12",
+    body:"Décisions : sortir la feature notifications, prioriser le moteur de recherche.",
+    raw:"réunion backlog sprint 12",
+    category:"reunion", priority:"moyenne",
+    due:"2026-06-12", dueLabel:"Dans 3 jours", dueUrgent:false,
+    actions:["Partager le CR","Mettre à jour le backlog","Informer le client"],
+    createdAt:"2026-06-09T11:30:00", done:false,
+  },
+  {
+    id:3, space:"pro",
+    title:"Idée : dashboard de suivi de vélocité",
+    body:"Visualiser les sprints passés, comparer aux estimations, détecter les dettes récurrentes.",
+    raw:"idée dashboard vélocité",
+    category:"idee", priority:"basse",
+    due:null, dueLabel:"Pas d'échéance", dueUrgent:false,
+    actions:["Explorer les outils","Faire une démo React","Soumettre à l'équipe"],
+    createdAt:"2026-06-08T16:45:00", done:false,
+  },
+  {
+    id:4, space:"perso",
+    title:"Renouveler le contrat d'assurance habitation",
+    body:"Le contrat expire fin juillet. Comparer les offres et envoyer le courrier de résiliation.",
+    raw:"renouveler assurance maison avant fin juillet",
+    category:"maison", priority:"haute",
+    due:"2026-06-20", dueLabel:"Dans 11 jours", dueUrgent:false,
+    actions:["Comparer les offres en ligne","Demander un devis","Envoyer la résiliation en AR"],
+    createdAt:"2026-06-08T09:00:00", done:false,
+  },
+  {
+    id:5, space:"perso",
+    title:"Organiser le week-end en famille à La Baule",
+    body:"Réserver l'hébergement et prévoir les activités pour le week-end du 21 juin.",
+    raw:"week-end la baule famille organiser",
+    category:"famille", priority:"moyenne",
+    due:"2026-06-14", dueLabel:"Dans 5 jours", dueUrgent:false,
+    actions:["Réserver l'hôtel","Regarder les activités karting/char à voile","Prévenir tout le monde"],
+    createdAt:"2026-06-07T18:00:00", done:false,
+  },
+];

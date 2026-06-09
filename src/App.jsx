@@ -1,12 +1,14 @@
 import { useState, useEffect, useRef } from "react";
-import { MOCK_NOTES, CATEGORIES, PRIORITIES } from "./data/mockNotes";
+import { MOCK_NOTES, DEFAULT_CATEGORIES, CATEGORIES, setCategories, PRIORITIES } from "./data/mockNotes";
 import AuthScreen from "./components/AuthScreen";
-import { fetchNotes, createNote, markNoteDone, onAuthChange, signOut } from "./lib/supabase";
+import { fetchNotes, createNote, updateNote, deleteNote, markNoteDone,
+         fetchCategories, createCategory, deleteCategory,
+         onAuthChange, signOut } from "./lib/supabase";
 import { applyTheme, getInitialTheme } from "./theme";
 
 const USE_MOCK = false;
 
-// ─── CSS global injecté une seule fois ───────────────────────────────────────
+// ─── Global CSS ───────────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
   *, *::before, *::after { box-sizing: border-box; }
   html, body, #root { height: 100%; margin: 0; padding: 0; }
@@ -24,52 +26,66 @@ const GLOBAL_CSS = `
   .nf-nav-btn:hover { background: var(--nf-bg-primary); color: var(--nf-text-primary); }
   .nf-nav-btn.active { background: var(--nf-bg-primary); color: var(--nf-accent); font-weight: 500; }
   .nf-card {
-    background: var(--nf-bg-primary);
-    border: 0.5px solid var(--nf-border);
-    border-radius: 12px; padding: 11px 14px; cursor: pointer;
-    transition: border-color 0.15s;
+    background: var(--nf-bg-primary); border: 0.5px solid var(--nf-border);
+    border-radius: 12px; padding: 11px 14px; cursor: pointer; transition: border-color 0.15s;
   }
   .nf-card:hover { border-color: var(--nf-border-hover); }
   .nf-btn-primary {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 7px 14px; font-size: 13px; border-radius: 8px; border: none;
-    cursor: pointer; background: var(--nf-accent); color: #fff;
-    transition: background 0.15s;
+    cursor: pointer; background: var(--nf-accent); color: #fff; transition: background 0.15s;
   }
   .nf-btn-primary:hover { background: var(--nf-accent-hover); }
   .nf-btn-ghost {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 7px 13px; font-size: 13px; border-radius: 8px;
     border: 0.5px solid var(--nf-border-hover); cursor: pointer;
-    background: var(--nf-bg-primary); color: var(--nf-text-primary);
-    transition: background 0.15s;
+    background: var(--nf-bg-primary); color: var(--nf-text-primary); transition: background 0.15s;
   }
   .nf-btn-ghost:hover { background: var(--nf-bg-secondary); }
+  .nf-btn-danger {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 7px 13px; font-size: 13px; border-radius: 8px;
+    border: 0.5px solid var(--nf-red-border); cursor: pointer;
+    background: var(--nf-bg-primary); color: var(--nf-red-text); transition: background 0.15s;
+  }
+  .nf-btn-danger:hover { background: var(--nf-red-bg); }
   .nf-input {
     width: 100%; padding: 9px 12px; font-size: 14px; border-radius: 8px;
     border: 0.5px solid var(--nf-border-hover); outline: none;
-    background: var(--nf-bg-primary); color: var(--nf-text-primary);
-    transition: border-color 0.15s;
+    background: var(--nf-bg-primary); color: var(--nf-text-primary); transition: border-color 0.15s;
   }
   .nf-input:focus { border-color: var(--nf-accent); }
   @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
 `;
 
-// ─── Helpers couleur via CSS vars ─────────────────────────────────────────────
+// ─── Tokens ───────────────────────────────────────────────────────────────────
 const C = {
-  purple: { bg:"var(--nf-purple-bg)", text:"var(--nf-purple-text)" },
-  teal:   { bg:"var(--nf-teal-bg)",   text:"var(--nf-teal-text)"   },
-  blue:   { bg:"var(--nf-blue-bg)",   text:"var(--nf-blue-text)"   },
-  amber:  { bg:"var(--nf-amber-bg)",  text:"var(--nf-amber-text)"  },
-  red:    { bg:"var(--nf-red-bg)",    text:"var(--nf-red-text)",
-            border:"var(--nf-red-border)", dark:"var(--nf-red-dark)" },
-  green:  { bg:"var(--nf-green-bg)",  text:"var(--nf-green-text)"  },
+  purple:{ bg:"var(--nf-purple-bg)", text:"var(--nf-purple-text)" },
+  teal:  { bg:"var(--nf-teal-bg)",   text:"var(--nf-teal-text)"   },
+  blue:  { bg:"var(--nf-blue-bg)",   text:"var(--nf-blue-text)"   },
+  amber: { bg:"var(--nf-amber-bg)",  text:"var(--nf-amber-text)"  },
+  red:   { bg:"var(--nf-red-bg)",    text:"var(--nf-red-text)",
+           border:"var(--nf-red-border)", dark:"var(--nf-red-dark)" },
+  green: { bg:"var(--nf-green-bg)",  text:"var(--nf-green-text)"  },
 };
 
+const COLOR_OPTIONS = [
+  { key:"purple", label:"Violet" }, { key:"teal", label:"Vert" },
+  { key:"blue",   label:"Bleu"   }, { key:"amber", label:"Jaune" },
+  { key:"green",  label:"Sauge"  }, { key:"red",   label:"Rouge" },
+];
+
+const ICON_OPTIONS = [
+  "ti-tag","ti-briefcase","ti-users","ti-video","ti-bulb","ti-home","ti-coin",
+  "ti-heart","ti-confetti","ti-car","ti-plane","ti-book","ti-gym","ti-tool",
+  "ti-shopping-cart","ti-phone","ti-music","ti-camera","ti-star","ti-flag",
+];
+
 // ─── Atoms ────────────────────────────────────────────────────────────────────
-function Tag({ category }) {
-  const meta = CATEGORIES[category];
-  const c = C[meta.color];
+function Tag({ category, cats }) {
+  const meta = (cats || CATEGORIES)[category] || { label: category, icon:"ti-tag", color:"purple" };
+  const c = C[meta.color] || C.purple;
   return (
     <span style={{ display:"inline-flex", alignItems:"center", gap:4, fontSize:11,
       padding:"2px 8px", borderRadius:20, fontWeight:500, background:c.bg, color:c.text }}>
@@ -95,37 +111,56 @@ function DueBadge({ label, urgent }) {
   return (
     <span style={{ marginLeft:"auto", display:"inline-flex", alignItems:"center", gap:3,
       fontSize:11, color: urgent ? C.red.text : "var(--nf-text-tertiary)" }}>
-      <i className="ti ti-clock" aria-hidden="true" style={{fontSize:13}} />
-      {label}
+      <i className="ti ti-clock" aria-hidden="true" style={{fontSize:13}} />{label}
     </span>
   );
 }
 
-// ─── Toggle dark mode ─────────────────────────────────────────────────────────
-function ThemeToggle({ theme, onToggle }) {
+function SpacePill({ space }) {
+  const isPro = space === "pro";
   return (
-    <button onClick={onToggle} title={theme === "dark" ? "Passer en mode clair" : "Passer en mode sombre"}
-      style={{ background:"none", border:"none", cursor:"pointer", padding:"4px 6px",
-        color:"var(--nf-text-tertiary)", display:"flex", alignItems:"center",
-        borderRadius:6, transition:"color 0.15s, background 0.15s" }}
-      onMouseEnter={e => e.currentTarget.style.background = "var(--nf-bg-primary)"}
-      onMouseLeave={e => e.currentTarget.style.background = "none"}>
-      <i className={`ti ${theme === "dark" ? "ti-sun" : "ti-moon"}`}
-        aria-hidden="true" style={{fontSize:16}} />
-    </button>
+    <span style={{ fontSize:10, padding:"1px 7px", borderRadius:20, fontWeight:600,
+      letterSpacing:"0.4px", textTransform:"uppercase",
+      background: isPro ? "var(--nf-blue-bg)" : "var(--nf-purple-bg)",
+      color:       isPro ? "var(--nf-blue-text)" : "var(--nf-purple-text)" }}>
+      {isPro ? "Pro" : "Perso"}
+    </span>
+  );
+}
+
+// ─── Space Switcher ───────────────────────────────────────────────────────────
+function SpaceSwitcher({ space, onChange }) {
+  return (
+    <div style={{ display:"flex", margin:"10px 10px 6px", borderRadius:10,
+      background:"var(--nf-bg-primary)", border:"0.5px solid var(--nf-border)",
+      padding:3, gap:2 }}>
+      {["pro","perso"].map(s => (
+        <button key={s} onClick={() => onChange(s)} style={{
+          flex:1, padding:"5px 0", fontSize:12, fontWeight: space===s ? 500 : 400,
+          border:"none", borderRadius:8, cursor:"pointer", transition:"all 0.15s",
+          background: space===s ? "var(--nf-accent)" : "transparent",
+          color:       space===s ? "#fff" : "var(--nf-text-secondary)",
+        }}>
+          {s === "pro" ? "💼 Pro" : "🏠 Perso"}
+        </button>
+      ))}
+    </div>
   );
 }
 
 // ─── Note card ────────────────────────────────────────────────────────────────
-function NoteCard({ note, onClick }) {
+function NoteCard({ note, onClick, cats, showSpace }) {
   return (
     <div className="nf-card" onClick={() => onClick(note)}>
-      <div style={{ fontSize:14, fontWeight:500, color:"var(--nf-text-primary)",
-        marginBottom:5, lineHeight:1.4 }}>{note.title}</div>
+      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
+        <div style={{ fontSize:14, fontWeight:500, color:"var(--nf-text-primary)",
+          lineHeight:1.4, flex:1 }}>{note.title}</div>
+        {showSpace && <SpacePill space={note.space} />}
+      </div>
       <div style={{ fontSize:13, color:"var(--nf-text-secondary)",
         lineHeight:1.5, marginBottom:8 }}>{note.body}</div>
       <div style={{ display:"flex", alignItems:"center", gap:7, flexWrap:"wrap" }}>
-        <Tag category={note.category} />
+        <Tag category={note.category} cats={cats} />
         <Prio priority={note.priority} />
         <DueBadge label={note.dueLabel} urgent={note.dueUrgent} />
       </div>
@@ -133,26 +168,242 @@ function NoteCard({ note, onClick }) {
   );
 }
 
+// ─── Edit modal ───────────────────────────────────────────────────────────────
+function EditModal({ note, cats, onSave, onClose }) {
+  const [title, setTitle]       = useState(note.title);
+  const [body, setBody]         = useState(note.body);
+  const [category, setCategory] = useState(note.category);
+  const [priority, setPriority] = useState(note.priority);
+  const [saving, setSaving]     = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    await onSave(note.id, { ...note, title, body, category, priority });
+    setSaving(false);
+  }
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:100,
+      display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:"var(--nf-bg-primary)", border:"0.5px solid var(--nf-border)",
+        borderRadius:16, padding:"24px", width:480, maxWidth:"90vw",
+        display:"flex", flexDirection:"column", gap:14 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ fontSize:15, fontWeight:500, color:"var(--nf-text-primary)" }}>
+            Modifier la note
+          </div>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer",
+            color:"var(--nf-text-tertiary)", fontSize:18, lineHeight:1, padding:"2px 6px" }}>
+            <i className="ti ti-x" aria-hidden="true" />
+          </button>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+          <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Titre</label>
+          <input className="nf-input" value={title} onChange={e => setTitle(e.target.value)} />
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+          <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Corps</label>
+          <textarea className="nf-input" value={body} onChange={e => setBody(e.target.value)}
+            rows={3} style={{ resize:"vertical" }} />
+        </div>
+        <div style={{ display:"flex", gap:10 }}>
+          <div style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
+            <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Catégorie</label>
+            <select className="nf-input" value={category} onChange={e => setCategory(e.target.value)}
+              style={{ appearance:"none" }}>
+              {Object.entries(cats).map(([key, meta]) => (
+                <option key={key} value={key}>{meta.label}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
+            <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Priorité</label>
+            <select className="nf-input" value={priority} onChange={e => setPriority(e.target.value)}
+              style={{ appearance:"none" }}>
+              {Object.entries(PRIORITIES).map(([key, meta]) => (
+                <option key={key} value={key}>{meta.label}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:8, marginTop:4 }}>
+          <button onClick={handleSave} className="nf-btn-primary" disabled={saving}>
+            <i className="ti ti-device-floppy" aria-hidden="true" />
+            {saving ? "Sauvegarde…" : "Sauvegarder"}
+          </button>
+          <button onClick={onClose} className="nf-btn-ghost">Annuler</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Delete confirm ───────────────────────────────────────────────────────────
+function DeleteConfirm({ note, onConfirm, onClose }) {
+  const [deleting, setDeleting] = useState(false);
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:100,
+      display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:"var(--nf-bg-primary)", border:`0.5px solid ${C.red.border}`,
+        borderRadius:16, padding:"24px", width:380, maxWidth:"90vw",
+        display:"flex", flexDirection:"column", gap:14 }}>
+        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+          <i className="ti ti-trash" aria-hidden="true"
+            style={{ fontSize:20, color:C.red.text }} />
+          <div style={{ fontSize:15, fontWeight:500, color:"var(--nf-text-primary)" }}>
+            Supprimer cette note ?
+          </div>
+        </div>
+        <div style={{ fontSize:13, color:"var(--nf-text-secondary)", lineHeight:1.6 }}>
+          « {note.title} »<br />
+          Cette action est irréversible.
+        </div>
+        <div style={{ display:"flex", gap:8 }}>
+          <button onClick={async () => { setDeleting(true); await onConfirm(note.id); }}
+            className="nf-btn-danger" disabled={deleting}>
+            <i className="ti ti-trash" aria-hidden="true" />
+            {deleting ? "Suppression…" : "Supprimer"}
+          </button>
+          <button onClick={onClose} className="nf-btn-ghost">Annuler</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Category manager ─────────────────────────────────────────────────────────
+function CategoryManager({ space, cats, onAdd, onDelete, onClose }) {
+  const [label, setLabel]     = useState("");
+  const [icon, setIcon]       = useState("ti-tag");
+  const [color, setColor]     = useState("purple");
+  const [adding, setAdding]   = useState(false);
+
+  function slugify(s) {
+    return s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .replace(/[^a-z0-9]/g,"-").replace(/-+/g,"-").replace(/^-|-$/g,"");
+  }
+
+  async function handleAdd() {
+    if (!label.trim()) return;
+    setAdding(true);
+    await onAdd({ key: slugify(label), label: label.trim(), icon, color });
+    setLabel(""); setAdding(false);
+  }
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:100,
+      display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:"var(--nf-bg-primary)", border:"0.5px solid var(--nf-border)",
+        borderRadius:16, padding:"24px", width:440, maxWidth:"90vw",
+        display:"flex", flexDirection:"column", gap:16 }}>
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ fontSize:15, fontWeight:500, color:"var(--nf-text-primary)" }}>
+            Catégories · {space === "pro" ? "💼 Pro" : "🏠 Perso"}
+          </div>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer",
+            color:"var(--nf-text-tertiary)", fontSize:18, padding:"2px 6px" }}>
+            <i className="ti ti-x" aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Catégories existantes */}
+        <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+          {Object.entries(cats).map(([key, meta]) => {
+            const c = C[meta.color] || C.purple;
+            return (
+              <div key={key} style={{ display:"flex", alignItems:"center", gap:10,
+                padding:"8px 12px", borderRadius:8, background:"var(--nf-bg-secondary)",
+                border:"0.5px solid var(--nf-border)" }}>
+                <span style={{ display:"inline-flex", alignItems:"center", gap:6,
+                  fontSize:12, padding:"2px 9px", borderRadius:20, fontWeight:500,
+                  background:c.bg, color:c.text }}>
+                  <i className={`ti ${meta.icon}`} aria-hidden="true" style={{fontSize:12}} />
+                  {meta.label}
+                </span>
+                <div style={{ flex:1 }} />
+                <button onClick={() => onDelete(key, meta.id)}
+                  style={{ background:"none", border:"none", cursor:"pointer",
+                    color:"var(--nf-text-tertiary)", padding:"2px 4px", borderRadius:4 }}
+                  title="Supprimer">
+                  <i className="ti ti-trash" aria-hidden="true" style={{fontSize:14}} />
+                </button>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Ajouter une catégorie */}
+        <div style={{ borderTop:"0.5px solid var(--nf-border)", paddingTop:14,
+          display:"flex", flexDirection:"column", gap:10 }}>
+          <div style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Nouvelle catégorie</div>
+          <input className="nf-input" value={label} onChange={e => setLabel(e.target.value)}
+            placeholder="Nom de la catégorie…" style={{ fontSize:13 }}
+            onKeyDown={e => e.key === "Enter" && handleAdd()} />
+          <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+            {ICON_OPTIONS.map(ic => (
+              <button key={ic} onClick={() => setIcon(ic)} style={{
+                width:32, height:32, borderRadius:8, border:"none", cursor:"pointer",
+                display:"flex", alignItems:"center", justifyContent:"center",
+                background: icon === ic ? "var(--nf-accent)" : "var(--nf-bg-secondary)",
+                color:       icon === ic ? "#fff" : "var(--nf-text-secondary)",
+                fontSize:15 }}>
+                <i className={`ti ${ic}`} aria-hidden="true" />
+              </button>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {COLOR_OPTIONS.map(({ key, label: cl }) => {
+              const cv = C[key] || C.purple;
+              return (
+                <button key={key} onClick={() => setColor(key)} style={{
+                  padding:"3px 10px", borderRadius:20, fontSize:11, fontWeight:500,
+                  border: color === key ? `1.5px solid ${cv.text}` : "1.5px solid transparent",
+                  background: cv.bg, color: cv.text, cursor:"pointer" }}>
+                  {cl}
+                </button>
+              );
+            })}
+          </div>
+          <button onClick={handleAdd} className="nf-btn-primary"
+            disabled={adding || !label.trim()} style={{ alignSelf:"flex-start" }}>
+            <i className="ti ti-plus" aria-hidden="true" />
+            {adding ? "Ajout…" : "Ajouter"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Note detail ──────────────────────────────────────────────────────────────
-function NoteDetail({ note, onClose, onMarkDone }) {
+function NoteDetail({ note, cats, onClose, onMarkDone, onEdit, onDelete }) {
   return (
     <div style={{ position:"absolute", inset:0, background:"var(--nf-bg-primary)",
       display:"flex", flexDirection:"column", zIndex:10 }}>
       <div style={{ padding:"14px 18px", borderBottom:`0.5px solid var(--nf-border)`,
-        display:"flex", alignItems:"center", gap:10 }}>
+        display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
         <button onClick={onClose} className="nf-btn-ghost" style={{padding:"5px 11px"}}>
           <i className="ti ti-arrow-left" aria-hidden="true" /> Retour
         </button>
         <div style={{ flex:1 }} />
+        <button onClick={() => onEdit(note)} className="nf-btn-ghost">
+          <i className="ti ti-edit" aria-hidden="true" /> Modifier
+        </button>
         <button onClick={() => onMarkDone(note.id)} className="nf-btn-ghost">
           <i className="ti ti-circle-check" aria-hidden="true" /> Marquer comme fait
         </button>
+        <button onClick={() => onDelete(note)} className="nf-btn-danger">
+          <i className="ti ti-trash" aria-hidden="true" /> Supprimer
+        </button>
       </div>
       <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
-        <div style={{ fontSize:18, fontWeight:500, color:"var(--nf-text-primary)",
-          marginBottom:14, lineHeight:1.4 }}>{note.title}</div>
+        <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+          <div style={{ fontSize:18, fontWeight:500, color:"var(--nf-text-primary)",
+            lineHeight:1.4, flex:1 }}>{note.title}</div>
+          <SpacePill space={note.space} />
+        </div>
         <div style={{ display:"flex", gap:8, marginBottom:18, flexWrap:"wrap" }}>
-          <Tag category={note.category} />
+          <Tag category={note.category} cats={cats} />
           <Prio priority={note.priority} />
           {note.dueLabel && <DueBadge label={note.dueLabel} urgent={note.dueUrgent} />}
         </div>
@@ -169,8 +420,7 @@ function NoteDetail({ note, onClose, onMarkDone }) {
             <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8,
               fontSize:13, color:"var(--nf-text-primary)", paddingTop: i > 0 ? 6 : 0 }}>
               <i className="ti ti-point" aria-hidden="true"
-                style={{ color:"var(--nf-text-tertiary)", marginTop:1 }} />
-              {a}
+                style={{ color:"var(--nf-text-tertiary)", marginTop:1 }} />{a}
             </div>
           ))}
         </div>
@@ -184,55 +434,76 @@ function NoteDetail({ note, onClose, onMarkDone }) {
 }
 
 // ─── Compose ──────────────────────────────────────────────────────────────────
-function ComposeView({ onSave }) {
-  const [text, setText] = useState("");
+function ComposeView({ space, cats, onSave }) {
+  const [text, setText]   = useState("");
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState(null);
+  const [result, setResult]   = useState(null);
+  const [error, setError]     = useState(null);
   const taRef = useRef();
 
   useEffect(() => { taRef.current?.focus(); }, []);
+
+  const catKeys = Object.keys(cats).join(" | ");
 
   async function analyze() {
     if (!text.trim()) { taRef.current?.focus(); return; }
     setLoading(true); setResult(null); setError(null);
     try {
       const resp = await fetch("https://api.anthropic.com/v1/messages", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
+        method:"POST", headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({
-          model:"claude-sonnet-4-20250514",
-          max_tokens:1000,
+          model:"claude-sonnet-4-20250514", max_tokens:1000,
           messages:[{ role:"user", content:
-            `Tu es l'IA de NoteFlow. Analyse cette note et retourne UNIQUEMENT un objet JSON valide, sans markdown.\n\nNote brute : "${text}"\n\nFormat JSON attendu :\n{\n  "title": "titre court (max 10 mots)",\n  "body": "note reformulée professionnellement (2-3 phrases)",\n  "category": "mission | client | reunion | idee",\n  "priority": "haute | moyenne | basse",\n  "dueLabel": "Aujourd'hui | Demain | Cette semaine | Ce mois | Pas d'échéance",\n  "dueUrgent": true/false,\n  "actions": ["action 1", "action 2", "action 3"]\n}`
+            `Tu es l'IA de NoteFlow (espace : ${space === "pro" ? "professionnel" : "personnel"}).
+Analyse cette note et retourne UNIQUEMENT un objet JSON valide, sans markdown.
+
+Note brute : "${text}"
+
+Catégories disponibles : ${catKeys}
+
+Format JSON :
+{
+  "title": "titre court (max 10 mots)",
+  "body": "note reformulée (2-3 phrases)",
+  "category": "<une des catégories disponibles>",
+  "priority": "haute | moyenne | basse",
+  "dueLabel": "Aujourd'hui | Demain | Cette semaine | Ce mois | Pas d'échéance",
+  "dueUrgent": true/false,
+  "actions": ["action 1", "action 2", "action 3"]
+}`
           }]
         })
       });
       const data = await resp.json();
       const raw = data.content?.find(b => b.type === "text")?.text || "";
-      setResult(JSON.parse(raw.replace(/```json|```/g, "").trim()));
-    } catch {
-      setError("Impossible d'analyser la note. Vérifie ta connexion.");
-    }
+      setResult(JSON.parse(raw.replace(/```json|```/g,"").trim()));
+    } catch { setError("Impossible d'analyser la note. Vérifie ta connexion."); }
     setLoading(false);
   }
 
   async function handleSave() {
-    const newNote = { ...result, raw:text, due:null, createdAt:new Date().toISOString(),
-      done:false, id: USE_MOCK ? Date.now() : undefined };
-    if (!USE_MOCK) { const saved = await createNote(newNote); onSave(saved); }
+    const newNote = { ...result, raw:text, due:null,
+      createdAt:new Date().toISOString(), done:false,
+      id: USE_MOCK ? Date.now() : undefined, space };
+    if (!USE_MOCK) { const saved = await createNote(newNote, space); onSave(saved); }
     else onSave(newNote);
     setText(""); setResult(null);
   }
 
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+      <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:2 }}>
+        <SpacePill space={space} />
+        <span style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>
+          La note sera créée dans l'espace {space === "pro" ? "professionnel" : "personnel"}
+        </span>
+      </div>
       <div style={{ background:"var(--nf-bg-secondary)", border:`0.5px solid var(--nf-border)`,
         borderRadius:12, padding:"14px 16px" }}>
         <textarea ref={taRef} value={text}
           onChange={e => { setText(e.target.value); setResult(null); }}
           onKeyDown={e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) analyze(); }}
-          placeholder="Écris ta note librement... L'IA corrige, catégorise et priorise. ⌘↵ pour analyser"
+          placeholder="Écris ta note librement… L'IA corrige, catégorise et priorise. ⌘↵ pour analyser"
           rows={4} style={{ width:"100%", background:"transparent", border:"none", outline:"none",
             fontSize:14, color:"var(--nf-text-primary)", resize:"none", lineHeight:1.6, minHeight:80 }} />
         <div style={{ display:"flex", alignItems:"center", gap:8, marginTop:10 }}>
@@ -246,26 +517,22 @@ function ComposeView({ onSave }) {
           </button>
         </div>
       </div>
-
       {loading && (
         <div style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 0",
           fontSize:13, color:"var(--nf-accent)" }}>
           {[0,150,300].map(d => (
-            <span key={d} style={{ width:6, height:6, borderRadius:"50%",
-              background:"var(--nf-accent)", display:"inline-block",
-              animation:"bounce 1.2s infinite", animationDelay:`${d}ms` }} />
+            <span key={d} style={{ width:6, height:6, borderRadius:"50%", background:"var(--nf-accent)",
+              display:"inline-block", animation:"bounce 1.2s infinite", animationDelay:`${d}ms` }} />
           ))}
           Analyse en cours…
         </div>
       )}
-
       {error && (
         <div style={{ padding:"10px 14px", background:C.red.bg, color:C.red.text,
           borderRadius:8, fontSize:13 }}>
           <i className="ti ti-alert-triangle" aria-hidden="true" style={{marginRight:6}} />{error}
         </div>
       )}
-
       {result && (
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
           <div style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Résultat de l'analyse</div>
@@ -280,7 +547,7 @@ function ComposeView({ onSave }) {
           </div>
           <div style={{ display:"flex", gap:8 }}>
             {[
-              { label:"Catégorie", val:<Tag category={result.category} /> },
+              { label:"Catégorie", val:<Tag category={result.category} cats={cats} /> },
               { label:"Priorité",  val:<Prio priority={result.priority} /> },
               { label:"Échéance",  val:<DueBadge label={result.dueLabel} urgent={result.dueUrgent} /> },
             ].map(({ label, val }) => (
@@ -318,7 +585,7 @@ function ComposeView({ onSave }) {
 }
 
 // ─── Today ────────────────────────────────────────────────────────────────────
-function TodayView({ notes, onNoteClick }) {
+function TodayView({ notes, cats, onNoteClick }) {
   const urgent = notes.filter(n => n.dueUrgent && !n.done);
   const active = notes.filter(n => !n.done && n.priority !== "basse");
   return (
@@ -340,7 +607,7 @@ function TodayView({ notes, onNoteClick }) {
         </div>
       )}
       <div style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>À traiter aujourd'hui</div>
-      {active.map(n => <NoteCard key={n.id} note={n} onClick={onNoteClick} />)}
+      {active.map(n => <NoteCard key={n.id} note={n} onClick={onNoteClick} cats={cats} showSpace />)}
     </div>
   );
 }
@@ -348,8 +615,8 @@ function TodayView({ notes, onNoteClick }) {
 // ─── Digest ───────────────────────────────────────────────────────────────────
 function DigestView({ notes }) {
   const sorted = [...notes].filter(n => !n.done)
-    .sort((a, b) => ({ haute:0, moyenne:1, basse:2 })[a.priority] - ({ haute:0, moyenne:1, basse:2 })[b.priority])
-    .slice(0, 3);
+    .sort((a,b) => ({haute:0,moyenne:1,basse:2})[a.priority]-({haute:0,moyenne:1,basse:2})[b.priority])
+    .slice(0,3);
   return (
     <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
       <div style={{ background:"var(--nf-accent-subtle)", border:`0.5px solid var(--nf-accent)`,
@@ -376,8 +643,11 @@ function DigestView({ notes }) {
       </div>
       {sorted.map((n, i) => (
         <div key={n.id} className="nf-card" style={{ cursor:"default" }}>
-          <div style={{ fontSize:13, fontWeight:500, color:"var(--nf-text-primary)", marginBottom:4 }}>
-            {i + 1} · {n.title}
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
+            <span style={{ fontSize:13, fontWeight:500, color:"var(--nf-text-primary)", flex:1 }}>
+              {i+1} · {n.title}
+            </span>
+            <SpacePill space={n.space} />
           </div>
           <div style={{ fontSize:12, color:"var(--nf-text-secondary)" }}>{n.actions[0]}</div>
         </div>
@@ -387,9 +657,10 @@ function DigestView({ notes }) {
 }
 
 // ─── Right panel ──────────────────────────────────────────────────────────────
-function RightPanel({ notes }) {
+function RightPanel({ notes, space, cats }) {
+  const spaceNotes = notes.filter(n => n.space === space);
   const upcoming = notes.filter(n => n.due && !n.done)
-    .sort((a, b) => new Date(a.due) - new Date(b.due)).slice(0, 4);
+    .sort((a,b) => new Date(a.due)-new Date(b.due)).slice(0,4);
   return (
     <div style={{ width:230, borderLeft:`0.5px solid var(--nf-border)`,
       background:"var(--nf-bg-secondary)", display:"flex",
@@ -403,10 +674,10 @@ function RightPanel({ notes }) {
         display:"flex", flexDirection:"column", gap:12 }}>
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:8 }}>
           {[
-            { n:notes.length, l:"Notes", c:"var(--nf-text-primary)" },
-            { n:notes.filter(n=>n.dueUrgent&&!n.done).length, l:"Urgentes", c:C.red.text },
-            { n:notes.filter(n=>{ const d=new Date(n.createdAt); return (new Date()-d)/86400000<=7; }).length, l:"Cette semaine", c:"var(--nf-text-primary)" },
-            { n:notes.filter(n=>n.done).length, l:"Complétées", c:C.green.text },
+            { n:notes.filter(n=>!n.done).length,             l:"Total",        c:"var(--nf-text-primary)" },
+            { n:notes.filter(n=>n.dueUrgent&&!n.done).length,l:"Urgentes",     c:C.red.text },
+            { n:spaceNotes.filter(n=>!n.done).length,         l:space==="pro"?"Pro":"Perso", c:space==="pro"?"var(--nf-blue-text)":"var(--nf-purple-text)" },
+            { n:notes.filter(n=>n.done).length,               l:"Complétées",  c:C.green.text },
           ].map(({ n, l, c }) => (
             <div key={l} style={{ background:"var(--nf-bg-primary)", borderRadius:8, padding:"9px 12px" }}>
               <div style={{ fontSize:22, fontWeight:500, color:c }}>{n}</div>
@@ -415,17 +686,15 @@ function RightPanel({ notes }) {
           ))}
         </div>
         <div>
-          <div style={{ fontSize:12, color:"var(--nf-text-tertiary)", marginBottom:8 }}>
-            Prochaines échéances
-          </div>
+          <div style={{ fontSize:12, color:"var(--nf-text-tertiary)", marginBottom:8 }}>Prochaines échéances</div>
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
             {upcoming.length === 0 && (
               <div style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Aucune échéance.</div>
             )}
             {upcoming.map(n => (
-              <div key={n.id} style={{ display:"flex", alignItems:"center", gap:8,
-                fontSize:12, padding:"8px 10px", background:"var(--nf-bg-primary)",
-                borderRadius:8, border:`0.5px solid ${n.dueUrgent ? C.red.border : "var(--nf-border)"}` }}>
+              <div key={n.id} style={{ display:"flex", alignItems:"center", gap:8, fontSize:12,
+                padding:"8px 10px", background:"var(--nf-bg-primary)", borderRadius:8,
+                border:`0.5px solid ${n.dueUrgent ? C.red.border : "var(--nf-border)"}` }}>
                 <i className="ti ti-clock" aria-hidden="true"
                   style={{ fontSize:14, color: n.dueUrgent ? C.red.text : "var(--nf-text-tertiary)" }} />
                 <div style={{ flex:1, color:"var(--nf-text-primary)", overflow:"hidden",
@@ -437,11 +706,13 @@ function RightPanel({ notes }) {
           </div>
         </div>
         <div>
-          <div style={{ fontSize:12, color:"var(--nf-text-tertiary)", marginBottom:6 }}>Répartition</div>
-          {Object.entries(CATEGORIES).map(([key, meta]) => {
-            const count = notes.filter(n => n.category === key).length;
-            const pct = notes.length > 0 ? Math.round((count / notes.length) * 100) : 0;
-            const c = C[meta.color];
+          <div style={{ fontSize:12, color:"var(--nf-text-tertiary)", marginBottom:6 }}>
+            Répartition ({space === "pro" ? "Pro" : "Perso"})
+          </div>
+          {Object.entries(cats).map(([key, meta]) => {
+            const count = spaceNotes.filter(n => n.category === key).length;
+            const pct = spaceNotes.length > 0 ? Math.round((count/spaceNotes.length)*100) : 0;
+            const c = C[meta.color] || C.purple;
             return (
               <div key={key} style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
                 <i className={`ti ${meta.icon}`} aria-hidden="true"
@@ -464,7 +735,8 @@ function RightPanel({ notes }) {
 }
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
-function Sidebar({ activeView, onNav, noteCount, urgentCount, user, theme, onToggleTheme }) {
+function Sidebar({ activeView, onNav, space, onSpaceChange, noteCount, urgentCount,
+                   cats, onManageCats, user, theme, onToggleTheme }) {
   const nav = [
     { id:"all",     icon:"ti-layout-list", label:"Toutes les notes", badge:noteCount },
     { id:"today",   icon:"ti-sun",         label:"Aujourd'hui",      badge:urgentCount, urgent:true },
@@ -472,24 +744,29 @@ function Sidebar({ activeView, onNav, noteCount, urgentCount, user, theme, onTog
     { id:"compose", icon:"ti-plus",        label:"Nouvelle note" },
   ];
   return (
-    <div style={{ width:196, borderRight:`0.5px solid var(--nf-border)`,
-      background:"var(--nf-bg-secondary)", display:"flex",
-      flexDirection:"column", flexShrink:0 }}>
-      <div style={{ padding:"14px 14px 10px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+    <div style={{ width:210, borderRight:`0.5px solid var(--nf-border)`,
+      background:"var(--nf-bg-secondary)", display:"flex", flexDirection:"column", flexShrink:0 }}>
+      <div style={{ padding:"14px 14px 6px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div style={{ fontSize:17, fontWeight:500, color:"var(--nf-text-primary)", letterSpacing:"-0.3px" }}>
           Note<span style={{ color:"var(--nf-accent)" }}>Flow</span>
         </div>
-        <ThemeToggle theme={theme} onToggle={onToggleTheme} />
+        <button onClick={onToggleTheme} title={theme==="dark"?"Mode clair":"Mode sombre"}
+          style={{ background:"none", border:"none", cursor:"pointer", padding:"4px 6px",
+            color:"var(--nf-text-tertiary)", borderRadius:6 }}>
+          <i className={`ti ${theme==="dark"?"ti-sun":"ti-moon"}`} aria-hidden="true" style={{fontSize:16}} />
+        </button>
       </div>
-      <nav style={{ flex:1, padding:"4px 0" }}>
+
+      <SpaceSwitcher space={space} onChange={onSpaceChange} />
+
+      <nav style={{ flex:1, padding:"4px 0", overflowY:"auto" }}>
         {nav.map(item => (
           <button key={item.id} onClick={() => onNav(item.id)}
-            className={`nf-nav-btn${activeView === item.id ? " active" : ""}`}>
+            className={`nf-nav-btn${activeView===item.id?" active":""}`}>
             <i className={`ti ${item.icon}`} aria-hidden="true" style={{fontSize:15}} />
             {item.label}
             {item.badge > 0 && (
-              <span style={{ marginLeft:"auto", fontSize:11, padding:"1px 7px",
-                borderRadius:20, fontWeight:500,
+              <span style={{ marginLeft:"auto", fontSize:11, padding:"1px 7px", borderRadius:20, fontWeight:500,
                 background: item.urgent ? C.red.bg : "var(--nf-accent-subtle)",
                 color: item.urgent ? C.red.text : "var(--nf-accent)" }}>
                 {item.badge}
@@ -497,18 +774,29 @@ function Sidebar({ activeView, onNav, noteCount, urgentCount, user, theme, onTog
             )}
           </button>
         ))}
-        <div style={{ padding:"14px 14px 4px", fontSize:11, color:"var(--nf-text-tertiary)",
-          letterSpacing:"0.5px", textTransform:"uppercase" }}>
-          Catégories
+
+        <div style={{ padding:"12px 14px 4px", display:"flex", alignItems:"center",
+          justifyContent:"space-between" }}>
+          <span style={{ fontSize:11, color:"var(--nf-text-tertiary)",
+            letterSpacing:"0.5px", textTransform:"uppercase" }}>
+            Catégories
+          </span>
+          <button onClick={onManageCats} title="Gérer les catégories"
+            style={{ background:"none", border:"none", cursor:"pointer",
+              color:"var(--nf-text-tertiary)", padding:"2px 4px", borderRadius:4,
+              display:"flex", alignItems:"center" }}>
+            <i className="ti ti-settings" aria-hidden="true" style={{fontSize:13}} />
+          </button>
         </div>
-        {Object.entries(CATEGORIES).map(([key, meta]) => (
+        {Object.entries(cats).map(([key, meta]) => (
           <button key={key} onClick={() => onNav(`cat:${key}`)}
-            className={`nf-nav-btn${activeView === `cat:${key}` ? " active" : ""}`}>
+            className={`nf-nav-btn${activeView===`cat:${key}`?" active":""}`}>
             <i className={`ti ${meta.icon}`} aria-hidden="true" style={{fontSize:15}} />
             {meta.label}
           </button>
         ))}
       </nav>
+
       <div style={{ padding:"12px 14px", borderTop:`0.5px solid var(--nf-border)` }}>
         {user && (
           <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:6,
@@ -539,78 +827,133 @@ const VIEW_TITLES = {
 };
 
 export default function App() {
-  const [notes, setNotes]               = useState([]);
+  const [allNotes, setAllNotes]         = useState([]);
   const [view, setView]                 = useState("all");
+  const [space, setSpace]               = useState("pro");
+  const [cats, setCats]                 = useState(DEFAULT_CATEGORIES.pro);
   const [selectedNote, setSelectedNote] = useState(null);
+  const [editNote, setEditNote]         = useState(null);
+  const [deleteNote_, setDeleteNote]    = useState(null);
+  const [showCatMgr, setShowCatMgr]     = useState(false);
   const [search, setSearch]             = useState("");
   const [user, setUser]                 = useState(USE_MOCK ? { email:"demo@noteflow.app" } : null);
   const [loading, setLoading]           = useState(!USE_MOCK);
   const [theme, setTheme]               = useState(() => getInitialTheme());
 
-  // Injecter le CSS global une seule fois
   useEffect(() => {
     if (!document.getElementById("nf-global-css")) {
-      const style = document.createElement("style");
-      style.id = "nf-global-css";
-      style.textContent = GLOBAL_CSS;
-      document.head.appendChild(style);
+      const s = document.createElement("style");
+      s.id = "nf-global-css"; s.textContent = GLOBAL_CSS;
+      document.head.appendChild(s);
     }
   }, []);
 
-  // Appliquer le thème au montage et à chaque changement
   useEffect(() => { applyTheme(theme); }, [theme]);
 
-  function toggleTheme() {
-    setTheme(t => t === "light" ? "dark" : "light");
-  }
+  // Charger les notes + catégories selon l'espace actif
+  useEffect(() => {
+    if (USE_MOCK) {
+      setAllNotes(MOCK_NOTES);
+      setCats(DEFAULT_CATEGORIES[space]);
+      return;
+    }
+    if (!user) return;
+    fetchNotes().then(setAllNotes);
+    fetchCategories(space).then(c => { setCats(c); setCategories(c); });
+  }, [space, user]);
 
   useEffect(() => {
-    if (USE_MOCK) { setNotes(MOCK_NOTES); return; }
+    if (USE_MOCK) return;
     const { data: { subscription } } = onAuthChange(u => {
       setUser(u); setLoading(false);
-      if (u) fetchNotes().then(setNotes);
     });
     return () => subscription.unsubscribe();
   }, []);
 
+  function handleSpaceChange(s) {
+    setSpace(s); setView("all"); setSelectedNote(null); setSearch("");
+  }
+
   async function handleMarkDone(id) {
     if (!USE_MOCK) await markNoteDone(id);
-    setNotes(prev => prev.map(n => n.id === id ? { ...n, done:true } : n));
+    setAllNotes(prev => prev.map(n => n.id===id ? { ...n, done:true } : n));
     setSelectedNote(null);
   }
 
+  async function handleEdit(id, fields) {
+    if (!USE_MOCK) {
+      const updated = await updateNote(id, fields);
+      setAllNotes(prev => prev.map(n => n.id===id ? updated : n));
+    } else {
+      setAllNotes(prev => prev.map(n => n.id===id ? { ...n, ...fields } : n));
+    }
+    setEditNote(null);
+    setSelectedNote(null);
+  }
+
+  async function handleDelete(id) {
+    if (!USE_MOCK) await deleteNote(id);
+    setAllNotes(prev => prev.filter(n => n.id !== id));
+    setDeleteNote(null); setSelectedNote(null);
+  }
+
+  async function handleAddCategory(catData) {
+    if (!USE_MOCK) {
+      await createCategory(space, catData);
+      const updated = await fetchCategories(space);
+      setCats(updated); setCategories(updated);
+    } else {
+      setCats(prev => ({ ...prev, [catData.key]: catData }));
+    }
+  }
+
+  async function handleDeleteCategory(key, id) {
+    if (!USE_MOCK && id) await deleteCategory(id);
+    setCats(prev => { const c = { ...prev }; delete c[key]; return c; });
+  }
+
   function handleSave(newNote) {
-    setNotes(prev => [newNote, ...prev]);
+    setAllNotes(prev => [newNote, ...prev]);
     setView("all");
   }
 
   if (loading) return null;
   if (!USE_MOCK && !user) return <AuthScreen />;
 
+  // Notes filtrées selon l'espace actif (sauf today/digest qui montrent tout)
+  const spaceNotes = allNotes.filter(n => n.space === space);
   const isCat = view.startsWith("cat:");
-  const filtered = notes
-    .filter(n => isCat ? n.category === view.slice(4) && !n.done : !n.done)
-    .filter(n => !search.trim() || [n.title, n.body].join(" ").toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => ({ haute:0, moyenne:1, basse:2 })[a.priority] - ({ haute:0, moyenne:1, basse:2 })[b.priority]);
+  const baseNotes = (view === "today" || view === "digest") ? allNotes : spaceNotes;
+
+  const filtered = baseNotes
+    .filter(n => isCat ? n.category===view.slice(4) && !n.done : !n.done)
+    .filter(n => !search.trim() || [n.title,n.body].join(" ").toLowerCase().includes(search.toLowerCase()))
+    .sort((a,b) => ({haute:0,moyenne:1,basse:2})[a.priority]-({haute:0,moyenne:1,basse:2})[b.priority]);
+
+  const isCatView = view==="all" || isCat;
 
   return (
     <div style={{ display:"flex", height:"100vh", overflow:"hidden",
       background:"var(--nf-bg-tertiary)", color:"var(--nf-text-primary)",
       transition:"background 0.2s, color 0.2s" }}>
+
       <Sidebar
-        activeView={view} onNav={id => { setView(id); setSelectedNote(null); }}
-        noteCount={notes.filter(n=>!n.done).length}
-        urgentCount={notes.filter(n=>n.dueUrgent&&!n.done).length}
-        user={user} theme={theme} onToggleTheme={toggleTheme}
+        activeView={view} onNav={id => { setView(id); setSelectedNote(null); setSearch(""); }}
+        space={space} onSpaceChange={handleSpaceChange}
+        noteCount={spaceNotes.filter(n=>!n.done).length}
+        urgentCount={allNotes.filter(n=>n.dueUrgent&&!n.done).length}
+        cats={cats} onManageCats={() => setShowCatMgr(true)}
+        user={user} theme={theme} onToggleTheme={() => setTheme(t => t==="light"?"dark":"light")}
       />
+
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden",
         background:"var(--nf-bg-primary)", transition:"background 0.2s" }}>
         <div style={{ padding:"12px 20px", borderBottom:`0.5px solid var(--nf-border)`,
           display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
           <div style={{ fontSize:15, fontWeight:500, color:"var(--nf-text-primary)", flex:1 }}>
-            {isCat ? CATEGORIES[view.slice(4)]?.label : VIEW_TITLES[view] || "Notes"}
+            {isCat ? cats[view.slice(4)]?.label || view.slice(4) : VIEW_TITLES[view] || "Notes"}
           </div>
-          {(view === "all" || isCat) && (
+          {isCatView && (
             <div style={{ display:"flex", alignItems:"center", gap:8,
               background:"var(--nf-bg-secondary)", border:`0.5px solid var(--nf-border)`,
               borderRadius:8, padding:"6px 12px" }}>
@@ -618,7 +961,7 @@ export default function App() {
                 style={{ fontSize:14, color:"var(--nf-text-tertiary)" }} />
               <input value={search} onChange={e => setSearch(e.target.value)}
                 placeholder="Rechercher…" style={{ background:"none", border:"none",
-                  outline:"none", fontSize:13, color:"var(--nf-text-primary)", width:160 }} />
+                  outline:"none", fontSize:13, color:"var(--nf-text-primary)", width:150 }} />
             </div>
           )}
           <button onClick={() => { setView("compose"); setSelectedNote(null); }}
@@ -626,13 +969,19 @@ export default function App() {
             <i className="ti ti-plus" aria-hidden="true" /> Nouvelle note
           </button>
         </div>
+
         <div style={{ flex:1, overflowY:"auto", padding:"16px 20px", position:"relative" }}>
           {selectedNote && (
-            <NoteDetail note={selectedNote} onClose={() => setSelectedNote(null)}
-              onMarkDone={handleMarkDone} />
+            <NoteDetail note={selectedNote} cats={cats}
+              onClose={() => setSelectedNote(null)}
+              onMarkDone={handleMarkDone}
+              onEdit={n => setEditNote(n)}
+              onDelete={n => setDeleteNote(n)} />
           )}
-          {view === "compose" && <ComposeView onSave={handleSave} />}
-          {(view === "all" || isCat) && !selectedNote && (
+          {view === "compose" && (
+            <ComposeView space={space} cats={cats} onSave={handleSave} />
+          )}
+          {isCatView && !selectedNote && (
             <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
               {filtered.length === 0 ? (
                 <div style={{ textAlign:"center", padding:"48px 0",
@@ -644,20 +993,36 @@ export default function App() {
               ) : (
                 <>
                   <div style={{ fontSize:12, color:"var(--nf-text-tertiary)", marginBottom:4 }}>
-                    {filtered.length} note{filtered.length > 1 ? "s" : ""} · triées par priorité
+                    {filtered.length} note{filtered.length>1?"s":""} · triées par priorité
                   </div>
-                  {filtered.map(n => <NoteCard key={n.id} note={n} onClick={setSelectedNote} />)}
+                  {filtered.map(n => <NoteCard key={n.id} note={n} onClick={setSelectedNote} cats={cats} />)}
                 </>
               )}
             </div>
           )}
           {view === "today" && !selectedNote && (
-            <TodayView notes={notes} onNoteClick={setSelectedNote} />
+            <TodayView notes={allNotes} cats={cats} onNoteClick={setSelectedNote} />
           )}
-          {view === "digest" && !selectedNote && <DigestView notes={notes} />}
+          {view === "digest" && !selectedNote && <DigestView notes={allNotes} />}
         </div>
       </div>
-      <RightPanel notes={notes} />
+
+      <RightPanel notes={allNotes} space={space} cats={cats} />
+
+      {editNote && (
+        <EditModal note={editNote} cats={cats}
+          onSave={handleEdit} onClose={() => setEditNote(null)} />
+      )}
+      {deleteNote_ && (
+        <DeleteConfirm note={deleteNote_}
+          onConfirm={handleDelete} onClose={() => setDeleteNote(null)} />
+      )}
+      {showCatMgr && (
+        <CategoryManager space={space} cats={cats}
+          onAdd={handleAddCategory}
+          onDelete={handleDeleteCategory}
+          onClose={() => setShowCatMgr(false)} />
+      )}
     </div>
   );
 }
