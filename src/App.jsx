@@ -518,47 +518,109 @@ function ComposeView({ space, cats, onSave }) {
       )}
       {result && (
         <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-          <div style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Résultat de l'analyse</div>
-          <div className="nf-card" style={{ cursor:"default" }}>
-            <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:8,
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <div style={{ fontSize:12, color:"var(--nf-text-tertiary)", flex:1 }}>
+              Résultat de l'analyse — <span style={{ color:"var(--nf-accent)" }}>modifiable avant enregistrement</span>
+            </div>
+          </div>
+
+          {/* Titre + corps éditables */}
+          <div className="nf-card" style={{ cursor:"default", display:"flex", flexDirection:"column", gap:8 }}>
+            <div style={{ fontSize:11, color:"var(--nf-text-tertiary)",
               display:"flex", alignItems:"center", gap:4 }}>
               <i className="ti ti-check" aria-hidden="true" style={{fontSize:13}} /> Note reformulée
             </div>
-            <div style={{ fontSize:15, fontWeight:500, color:"var(--nf-text-primary)",
-              marginBottom:6 }}>{result.title}</div>
-            <div style={{ fontSize:13, color:"var(--nf-text-secondary)", lineHeight:1.6 }}>{result.body}</div>
+            <input
+              className="nf-input"
+              value={result.title}
+              onChange={e => setResult(r => ({ ...r, title: e.target.value }))}
+              style={{ fontSize:14, fontWeight:500 }}
+              placeholder="Titre…"
+            />
+            <textarea
+              className="nf-input"
+              value={result.body}
+              onChange={e => setResult(r => ({ ...r, body: e.target.value }))}
+              rows={2}
+              style={{ fontSize:13, resize:"vertical" }}
+              placeholder="Corps de la note…"
+            />
           </div>
+
+          {/* Catégorie + Priorité + Échéance éditables */}
           <div style={{ display:"flex", gap:8 }}>
-            {[
-              { label:"Catégorie", val:<Tag category={result.category} cats={cats} /> },
-              { label:"Priorité",  val:<Prio priority={result.priority} /> },
-              { label:"Échéance",  val:<DueBadge label={result.dueLabel} urgent={result.dueUrgent} /> },
-            ].map(({ label, val }) => (
-              <div key={label} className="nf-card" style={{ flex:1, cursor:"default" }}>
-                <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:6 }}>{label}</div>
-                <div>{val}</div>
-              </div>
-            ))}
+            <div className="nf-card" style={{ flex:1, cursor:"default" }}>
+              <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:6 }}>Catégorie</div>
+              <select
+                className="nf-input"
+                value={result.category}
+                onChange={e => setResult(r => ({ ...r, category: e.target.value }))}
+                style={{ fontSize:12, padding:"4px 8px", appearance:"none" }}>
+                {Object.entries(cats).map(([key, meta]) => (
+                  <option key={key} value={key}>{meta.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="nf-card" style={{ flex:1, cursor:"default" }}>
+              <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:6 }}>Priorité</div>
+              <select
+                className="nf-input"
+                value={result.priority}
+                onChange={e => setResult(r => ({ ...r, priority: e.target.value }))}
+                style={{ fontSize:12, padding:"4px 8px", appearance:"none" }}>
+                {Object.entries(PRIORITIES).map(([key, meta]) => (
+                  <option key={key} value={key}>{meta.label}</option>
+                ))}
+              </select>
+            </div>
+            <div className="nf-card" style={{ flex:1, cursor:"default" }}>
+              <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:6 }}>Échéance</div>
+              <select
+                className="nf-input"
+                value={result.dueLabel}
+                onChange={e => setResult(r => ({
+                  ...r,
+                  dueLabel: e.target.value,
+                  dueUrgent: e.target.value === "Aujourd'hui" || e.target.value === "Demain"
+                }))}
+                style={{ fontSize:12, padding:"4px 8px", appearance:"none" }}>
+                {["Aujourd'hui","Demain","Cette semaine","Ce mois","Pas d'échéance"].map(v => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </div>
           </div>
+
+          {/* Actions éditables */}
           <div className="nf-card" style={{ cursor:"default" }}>
             <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:8,
               display:"flex", alignItems:"center", gap:4 }}>
               <i className="ti ti-list-check" aria-hidden="true" style={{fontSize:13}} /> Actions suggérées
             </div>
             {result.actions?.map((a, i) => (
-              <div key={i} style={{ display:"flex", alignItems:"flex-start", gap:8,
-                fontSize:13, color:"var(--nf-text-primary)", paddingTop: i > 0 ? 6 : 0 }}>
+              <div key={i} style={{ display:"flex", alignItems:"center", gap:8,
+                paddingTop: i > 0 ? 6 : 0 }}>
                 <i className="ti ti-point" aria-hidden="true"
-                  style={{ color:"var(--nf-text-tertiary)", marginTop:1 }} />{a}
+                  style={{ color:"var(--nf-text-tertiary)", fontSize:14, flexShrink:0 }} />
+                <input
+                  className="nf-input"
+                  value={a}
+                  onChange={e => setResult(r => ({
+                    ...r,
+                    actions: r.actions.map((ac, idx) => idx === i ? e.target.value : ac)
+                  }))}
+                  style={{ fontSize:13, padding:"5px 10px" }}
+                />
               </div>
             ))}
           </div>
+
           <div style={{ display:"flex", gap:8 }}>
             <button onClick={handleSave} className="nf-btn-primary">
               <i className="ti ti-device-floppy" aria-hidden="true" /> Enregistrer
             </button>
             <button onClick={() => setResult(null)} className="nf-btn-ghost">
-              <i className="ti ti-refresh" aria-hidden="true" /> Modifier
+              <i className="ti ti-refresh" aria-hidden="true" /> Ré-analyser
             </button>
           </div>
         </div>
