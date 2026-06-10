@@ -965,9 +965,9 @@ function RightPanel({ notes, space, cats }) {
 function Sidebar({ activeView, onNav, space, onSpaceChange, noteCount, urgentCount,
                    cats, onManageCats, user, theme, onToggleTheme }) {
   const nav = [
+    { id:"digest",  icon:"ti-newspaper",   label:"Récap du jour" },
     { id:"all",     icon:"ti-layout-list", label:"Toutes les notes", badge:noteCount },
     { id:"today",   icon:"ti-sun",         label:"Aujourd'hui",      badge:urgentCount, urgent:true },
-    { id:"digest",  icon:"ti-newspaper",   label:"Récap du jour" },
     { id:"compose", icon:"ti-plus",        label:"Nouvelle note" },
   ];
   return (
@@ -1055,7 +1055,7 @@ const VIEW_TITLES = {
 
 export default function App() {
   const [allNotes, setAllNotes]         = useState([]);
-  const [view, setView]                 = useState("all");
+  const [view, setView]                 = useState("digest");
   const [space, setSpace]               = useState("pro");
   const [cats, setCats]                 = useState({});
   const [selectedNote, setSelectedNote] = useState(null);
@@ -1108,7 +1108,9 @@ export default function App() {
   }, []);
 
   function handleSpaceChange(s) {
-    setSpace(s); setView("all"); setSelectedNote(null); setSearch("");
+    setSpace(s);
+    setView(v => v === "digest" ? "digest" : "all");
+    setSelectedNote(null); setSearch("");
   }
 
   async function handleMarkDone(id) {
