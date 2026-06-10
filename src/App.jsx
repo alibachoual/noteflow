@@ -3,6 +3,7 @@ import { MOCK_NOTES, CATEGORIES, setCategories, PRIORITIES } from "./data/mockNo
 import AuthScreen from "./components/AuthScreen";
 import { fetchNotes, createNote, updateNote, deleteNote, markNoteDone,
          fetchCategories, createCategory, deleteCategory,
+         calcNextDue, resetRecurring,
          onAuthChange, signOut } from "./lib/supabase";
 import { applyTheme, getInitialTheme } from "./theme";
 
@@ -200,6 +201,24 @@ function SpacePill({ space }) {
   );
 }
 
+const RECURRENCE_LABELS = {
+  daily:   "Quotidienne",
+  weekly:  "Hebdomadaire",
+  monthly: "Mensuelle",
+  yearly:  "Annuelle",
+};
+
+function RecurringBadge({ recurrence }) {
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:3, fontSize:10,
+      padding:"1px 7px", borderRadius:20, fontWeight:600, letterSpacing:"0.3px",
+      background:"var(--nf-green-bg)", color:"var(--nf-green-text)" }}>
+      <i className="ti ti-refresh" aria-hidden="true" style={{fontSize:11}} />
+      {RECURRENCE_LABELS[recurrence] || recurrence}
+    </span>
+  );
+}
+
 // ─── Space Switcher ───────────────────────────────────────────────────────────
 function SpaceSwitcher({ space, onChange }) {
   return (
@@ -222,19 +241,34 @@ function SpaceSwitcher({ space, onChange }) {
 
 // ─── Note card ────────────────────────────────────────────────────────────────
 function NoteCard({ note, onClick, cats, showSpace }) {
+  const isDone = note.done && note.isRecurring;
   return (
-    <div className="nf-card" onClick={() => onClick(note)}>
+    <div className="nf-card" onClick={() => onClick(note)}
+      style={{ opacity: isDone ? 0.6 : 1 }}>
       <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
-        <div style={{ fontSize:14, fontWeight:500, color:"var(--nf-text-primary)",
-          lineHeight:1.4, flex:1 }}>{note.title}</div>
+        <div style={{ fontSize:14, fontWeight:500,
+          color: isDone ? "var(--nf-text-tertiary)" : "var(--nf-text-primary)",
+          lineHeight:1.4, flex:1,
+          textDecoration: isDone ? "line-through" : "none" }}>
+          {note.title}
+        </div>
+        {note.isRecurring && <RecurringBadge recurrence={note.recurrence} />}
         {showSpace && <SpacePill space={note.space} />}
       </div>
-      <div style={{ fontSize:13, color:"var(--nf-text-secondary)",
-        lineHeight:1.5, marginBottom:8 }}>{note.body}</div>
+      {isDone ? (
+        <div style={{ fontSize:12, color:"var(--nf-text-tertiary)", marginBottom:8,
+          display:"flex", alignItems:"center", gap:5 }}>
+          <i className="ti ti-circle-check" aria-hidden="true" style={{fontSize:14, color:"var(--nf-green-text)"}} />
+          Fait · revient le {new Date(note.nextDue).toLocaleDateString("fr-FR", { day:"numeric", month:"long" })}
+        </div>
+      ) : (
+        <div style={{ fontSize:13, color:"var(--nf-text-secondary)",
+          lineHeight:1.5, marginBottom:8 }}>{note.body}</div>
+      )}
       <div style={{ display:"flex", alignItems:"center", gap:7, flexWrap:"wrap" }}>
         <Tag category={note.category} cats={cats} />
-        <Prio priority={note.priority} />
-        <DueBadge label={note.dueLabel} urgent={note.dueUrgent} />
+        {!isDone && <Prio priority={note.priority} />}
+        {!isDone && <DueBadge label={note.dueLabel} urgent={note.dueUrgent} />}
       </div>
     </div>
   );
@@ -492,7 +526,18 @@ function NoteDetail({ note, cats, onClose, onMarkDone, onEdit, onDelete }) {
           <Tag category={note.category} cats={cats} />
           <Prio priority={note.priority} />
           {note.dueLabel && <DueBadge label={note.dueLabel} urgent={note.dueUrgent} />}
+          {note.isRecurring && <RecurringBadge recurrence={note.recurrence} />}
         </div>
+        {note.isRecurring && note.done && note.nextDue && (
+          <div style={{ marginBottom:16, padding:"10px 14px",
+            background:"var(--nf-green-bg)", borderRadius:8,
+            fontSize:13, color:"var(--nf-green-text)",
+            display:"flex", alignItems:"center", gap:8 }}>
+            <i className="ti ti-circle-check" aria-hidden="true" style={{fontSize:16}} />
+            Fait · prochaine occurrence le {new Date(note.nextDue).toLocaleDateString("fr-FR",
+              { weekday:"long", day:"numeric", month:"long" })}
+          </div>
+        )}
         <div style={{ fontSize:14, color:"var(--nf-text-secondary)",
           lineHeight:1.7, marginBottom:20 }}>{note.body}</div>
         <div style={{ background:"var(--nf-bg-secondary)", border:`0.5px solid var(--nf-border)`,
@@ -521,10 +566,12 @@ function NoteDetail({ note, cats, onClose, onMarkDone, onEdit, onDelete }) {
 
 // ─── Compose ──────────────────────────────────────────────────────────────────
 function ComposeView({ space, cats, onSave, onCatCreated }) {
-  const [text, setText]   = useState("");
-  const [loading, setLoading] = useState(false);
-  const [result, setResult]   = useState(null);
-  const [error, setError]     = useState(null);
+  const [text, setText]           = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [result, setResult]       = useState(null);
+  const [error, setError]         = useState(null);
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [recurrence, setRecurrence]   = useState("monthly");
   const taRef = useRef();
 
   useEffect(() => { taRef.current?.focus(); }, []);
@@ -551,12 +598,16 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
   }
 
   async function handleSave() {
-    const newNote = { ...result, raw:text, due:null,
+    const newNote = {
+      ...result, raw:text, due:null,
       createdAt:new Date().toISOString(), done:false,
-      id: USE_MOCK ? Date.now() : undefined, space };
+      id: USE_MOCK ? Date.now() : undefined, space,
+      isRecurring, recurrence: isRecurring ? recurrence : null,
+      recurrenceDay: recurrence === "monthly" ? 1 : null,
+    };
     if (!USE_MOCK) { const saved = await createNote(newNote, space); onSave(saved); }
     else onSave(newNote);
-    setText(""); setResult(null);
+    setText(""); setResult(null); setIsRecurring(false);
   }
 
   return (
@@ -584,6 +635,34 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
             <i className="ti ti-sparkles" aria-hidden="true" />
             {loading ? "Analyse…" : "Analyser"}
           </button>
+        </div>
+
+        {/* Toggle récurrence */}
+        <div style={{ marginTop:10, paddingTop:10,
+          borderTop:"0.5px solid var(--nf-border)", display:"flex", alignItems:"center", gap:10 }}>
+          <label style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer",
+            fontSize:13, color:"var(--nf-text-secondary)", userSelect:"none" }}>
+            <div onClick={() => setIsRecurring(v => !v)} style={{
+              width:32, height:18, borderRadius:9, transition:"background 0.2s",
+              background: isRecurring ? "var(--nf-accent)" : "var(--nf-border-hover)",
+              position:"relative", flexShrink:0, cursor:"pointer" }}>
+              <div style={{
+                position:"absolute", top:2, left: isRecurring ? 16 : 2,
+                width:14, height:14, borderRadius:"50%", background:"#fff",
+                transition:"left 0.2s", boxShadow:"0 1px 3px rgba(0,0,0,0.2)" }} />
+            </div>
+            Tâche récurrente
+          </label>
+          {isRecurring && (
+            <select className="nf-input" value={recurrence}
+              onChange={e => setRecurrence(e.target.value)}
+              style={{ fontSize:12, padding:"4px 10px", appearance:"none", width:"auto" }}>
+              <option value="daily">Quotidienne</option>
+              <option value="weekly">Hebdomadaire</option>
+              <option value="monthly">Mensuelle</option>
+              <option value="yearly">Annuelle</option>
+            </select>
+          )}
         </div>
       </div>
       {loading && (
@@ -985,7 +1064,17 @@ export default function App() {
       return;
     }
     if (!user) return;
-    fetchNotes().then(setAllNotes);
+    fetchNotes().then(notes => {
+      const today = new Date().toISOString().split("T")[0];
+      // Reset auto des récurrentes dont la prochaine occurrence est arrivée
+      notes.forEach(n => {
+        if (n.isRecurring && n.done && n.nextDue && n.nextDue <= today) {
+          resetRecurring(n.id);
+          n.done = false; n.doneAt = null; n.nextDue = null;
+        }
+      });
+      setAllNotes(notes);
+    });
     fetchCategories(space).then(c => { setCats(c); setCategories(c); });
   }, [space, user]);
 
@@ -1002,8 +1091,17 @@ export default function App() {
   }
 
   async function handleMarkDone(id) {
-    if (!USE_MOCK) await markNoteDone(id);
-    setAllNotes(prev => prev.map(n => n.id===id ? { ...n, done:true } : n));
+    const note = allNotes.find(n => n.id === id);
+    if (!USE_MOCK) await markNoteDone(id, note);
+
+    if (note?.isRecurring && note?.recurrence) {
+      const nextDue = calcNextDue(new Date(), note.recurrence, note.recurrenceDay);
+      setAllNotes(prev => prev.map(n => n.id===id
+        ? { ...n, done:true, doneAt:new Date().toISOString(), nextDue }
+        : n));
+    } else {
+      setAllNotes(prev => prev.map(n => n.id===id ? { ...n, done:true } : n));
+    }
     setSelectedNote(null);
   }
 
@@ -1053,9 +1151,18 @@ export default function App() {
   const baseNotes = (view === "today" || view === "digest") ? allNotes : spaceNotes;
 
   const filtered = baseNotes
-    .filter(n => isCat ? n.category===view.slice(4) && !n.done : !n.done)
+    .filter(n => {
+      if (isCat) return n.category === view.slice(4) && (!n.done || n.isRecurring);
+      // Garder les récurrentes faites (elles restent visibles jusqu'à next_due)
+      return !n.done || n.isRecurring;
+    })
     .filter(n => !search.trim() || [n.title,n.body].join(" ").toLowerCase().includes(search.toLowerCase()))
-    .sort((a,b) => ({haute:0,moyenne:1,basse:2})[a.priority]-({haute:0,moyenne:1,basse:2})[b.priority]);
+    .sort((a,b) => {
+      // Récurrentes faites → tout en bas
+      if (a.done && a.isRecurring && !(b.done && b.isRecurring)) return 1;
+      if (b.done && b.isRecurring && !(a.done && a.isRecurring)) return -1;
+      return ({haute:0,moyenne:1,basse:2})[a.priority] - ({haute:0,moyenne:1,basse:2})[b.priority];
+    });
 
   const isCatView = view==="all" || isCat;
 

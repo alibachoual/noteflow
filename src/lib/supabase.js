@@ -50,9 +50,44 @@ export async function deleteNote(id) {
   if (error) throw error;
 }
 
-export async function markNoteDone(id) {
+export async function markNoteDone(id, note) {
+  const now = new Date();
+  const updates = { done: true, done_at: now.toISOString() };
+
+  if (note?.isRecurring && note?.recurrence) {
+    updates.next_due = calcNextDue(now, note.recurrence, note.recurrenceDay);
+  }
+
   const { error } = await supabase.from("notes")
-    .update({ done: true, done_at: new Date().toISOString() }).eq("id", id);
+    .update(updates).eq("id", id);
+  if (error) throw error;
+}
+
+export function calcNextDue(from, recurrence, recurrenceDay) {
+  const d = new Date(from);
+  switch (recurrence) {
+    case "daily":
+      d.setDate(d.getDate() + 1);
+      break;
+    case "weekly":
+      d.setDate(d.getDate() + 7);
+      break;
+    case "monthly":
+      d.setMonth(d.getMonth() + 1);
+      if (recurrenceDay) d.setDate(recurrenceDay);
+      else d.setDate(1); // 1er du mois suivant par défaut
+      break;
+    case "yearly":
+      d.setFullYear(d.getFullYear() + 1);
+      break;
+  }
+  return d.toISOString().split("T")[0];
+}
+
+export async function resetRecurring(id) {
+  // Remet une tâche récurrente à "à faire" (appelé au chargement si next_due <= today)
+  const { error } = await supabase.from("notes")
+    .update({ done: false, done_at: null, next_due: null }).eq("id", id);
   if (error) throw error;
 }
 
@@ -121,34 +156,43 @@ export function onAuthChange(cb) {
 
 function dbToNote(row) {
   return {
-    id:        row.id,
-    space:     row.space ?? "pro",
-    raw:       row.raw,
-    title:     row.title,
-    body:      row.body,
-    category:  row.category,
-    priority:  row.priority,
-    due:       row.due_date,
-    dueLabel:  row.due_label ?? "Pas d'échéance",
-    dueUrgent: row.due_urgent,
-    actions:   row.actions ?? [],
-    done:      row.done,
-    createdAt: row.created_at,
+    id:            row.id,
+    space:         row.space ?? "pro",
+    raw:           row.raw,
+    title:         row.title,
+    body:          row.body,
+    category:      row.category,
+    priority:      row.priority,
+    due:           row.due_date,
+    dueLabel:      row.due_label ?? "Pas d'échéance",
+    dueUrgent:     row.due_urgent,
+    actions:       row.actions ?? [],
+    done:          row.done,
+    doneAt:        row.done_at ?? null,
+    nextDue:       row.next_due ?? null,
+    isRecurring:   row.is_recurring ?? false,
+    recurrence:    row.recurrence ?? null,
+    recurrenceDay: row.recurrence_day ?? null,
+    createdAt:     row.created_at,
   };
 }
 
 function noteToDb(note, userId, space) {
   return {
-    user_id:    userId,
-    space:      space,
-    raw:        note.raw,
-    title:      note.title,
-    body:       note.body,
-    category:   note.category,
-    priority:   note.priority,
-    due_date:   note.due ?? null,
-    due_label:  note.dueLabel ?? null,
-    due_urgent: note.dueUrgent ?? false,
-    actions:    note.actions ?? [],
+    user_id:       userId,
+    space:         space,
+    raw:           note.raw,
+    title:         note.title,
+    body:          note.body,
+    category:      note.category,
+    priority:      note.priority,
+    due_date:      note.due ?? null,
+    due_label:     note.dueLabel ?? null,
+    due_urgent:    note.dueUrgent ?? false,
+    actions:       note.actions ?? [],
+    is_recurring:  note.isRecurring ?? false,
+    recurrence:    note.recurrence ?? null,
+    recurrence_day:note.recurrenceDay ?? null,
+    next_due:      note.nextDue ?? null,
   };
 }
