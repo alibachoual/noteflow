@@ -1063,6 +1063,9 @@ export default function App() {
   const [deleteNote_, setDeleteNote]    = useState(null);
   const [showCatMgr, setShowCatMgr]     = useState(false);
   const [search, setSearch]             = useState("");
+  const [filterStatus, setFilterStatus] = useState("active"); // "active" | "done" | "all"
+  const [filterPriority, setFilterPriority] = useState("all"); // "all" | "haute" | "moyenne" | "basse"
+  const [filterRecurring, setFilterRecurring] = useState(false);
   const [user, setUser]                 = useState(USE_MOCK ? { email:"demo@noteflow.app" } : null);
   const [loading, setLoading]           = useState(!USE_MOCK);
   const [theme, setTheme]               = useState(() => getInitialTheme());
@@ -1175,15 +1178,23 @@ export default function App() {
 
   const filtered = baseNotes
     .filter(n => {
-      if (isCat) return n.category === view.slice(4) && (!n.done || n.isRecurring);
-      // Garder les récurrentes faites (elles restent visibles jusqu'à next_due)
-      return !n.done || n.isRecurring;
+      // Filtre catégorie
+      if (isCat && n.category !== view.slice(4)) return false;
+      // Filtre statut
+      if (filterStatus === "active") return !n.done || (n.isRecurring && n.done);
+      if (filterStatus === "done")   return n.done && !n.isRecurring;
+      return true; // "all"
     })
     .filter(n => !search.trim() || [n.title,n.body].join(" ").toLowerCase().includes(search.toLowerCase()))
+    .filter(n => filterPriority === "all" || n.priority === filterPriority)
+    .filter(n => !filterRecurring || n.isRecurring)
     .sort((a,b) => {
-      // Récurrentes faites → tout en bas
-      if (a.done && a.isRecurring && !(b.done && b.isRecurring)) return 1;
-      if (b.done && b.isRecurring && !(a.done && a.isRecurring)) return -1;
+      // Notes faites (non récurrentes) → tout en bas
+      if (a.done && !a.isRecurring && !(b.done && !b.isRecurring)) return 1;
+      if (b.done && !b.isRecurring && !(a.done && !a.isRecurring)) return -1;
+      // Récurrentes faites → avant les notes faites, après les actives
+      if (a.done && a.isRecurring && !(b.done)) return 1;
+      if (b.done && b.isRecurring && !(a.done)) return -1;
       return ({haute:0,moyenne:1,basse:2})[a.priority] - ({haute:0,moyenne:1,basse:2})[b.priority];
     });
 
@@ -1195,7 +1206,7 @@ export default function App() {
       transition:"background 0.2s, color 0.2s" }}>
 
       <Sidebar
-        activeView={view} onNav={id => { setView(id); setSelectedNote(null); setSearch(""); }}
+        activeView={view} onNav={id => { setView(id); setSelectedNote(null); setSearch(""); setFilterStatus("active"); setFilterPriority("all"); setFilterRecurring(false); }}
         space={space} onSpaceChange={handleSpaceChange}
         noteCount={spaceNotes.filter(n=>!n.done).length}
         urgentCount={allNotes.filter(n=>n.dueUrgent&&!n.done).length}
@@ -1211,14 +1222,62 @@ export default function App() {
             {isCat ? cats[view.slice(4)]?.label || view.slice(4) : VIEW_TITLES[view] || "Notes"}
           </div>
           {isCatView && (
-            <div style={{ display:"flex", alignItems:"center", gap:8,
-              background:"var(--nf-bg-secondary)", border:`0.5px solid var(--nf-border)`,
-              borderRadius:8, padding:"6px 12px" }}>
-              <i className="ti ti-search" aria-hidden="true"
-                style={{ fontSize:14, color:"var(--nf-text-tertiary)" }} />
-              <input value={search} onChange={e => setSearch(e.target.value)}
-                placeholder="Rechercher…" style={{ background:"none", border:"none",
-                  outline:"none", fontSize:13, color:"var(--nf-text-primary)", width:150 }} />
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              {/* Recherche */}
+              <div style={{ display:"flex", alignItems:"center", gap:8,
+                background:"var(--nf-bg-secondary)", border:`0.5px solid var(--nf-border)`,
+                borderRadius:8, padding:"6px 12px" }}>
+                <i className="ti ti-search" aria-hidden="true"
+                  style={{ fontSize:14, color:"var(--nf-text-tertiary)" }} />
+                <input value={search} onChange={e => setSearch(e.target.value)}
+                  placeholder="Rechercher…" style={{ background:"none", border:"none",
+                    outline:"none", fontSize:13, color:"var(--nf-text-primary)", width:130 }} />
+                {search && (
+                  <button onClick={() => setSearch("")} style={{ background:"none", border:"none",
+                    cursor:"pointer", color:"var(--nf-text-tertiary)", padding:0, lineHeight:1 }}>
+                    <i className="ti ti-x" style={{fontSize:13}} />
+                  </button>
+                )}
+              </div>
+
+              {/* Statut */}
+              <div style={{ display:"flex", borderRadius:8, overflow:"hidden",
+                border:`0.5px solid var(--nf-border)` }}>
+                {[
+                  { v:"active", label:"À faire" },
+                  { v:"done",   label:"Faites"  },
+                  { v:"all",    label:"Tout"    },
+                ].map(({ v, label }) => (
+                  <button key={v} onClick={() => setFilterStatus(v)} style={{
+                    padding:"6px 12px", fontSize:12, border:"none", cursor:"pointer",
+                    background: filterStatus===v ? "var(--nf-accent)" : "var(--nf-bg-secondary)",
+                    color:       filterStatus===v ? "#fff" : "var(--nf-text-secondary)",
+                    fontFamily:"inherit", transition:"background 0.15s" }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Priorité */}
+              <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)}
+                style={{ padding:"6px 10px", fontSize:12, borderRadius:8, border:`0.5px solid var(--nf-border)`,
+                  background:"var(--nf-bg-secondary)", color:"var(--nf-text-secondary)",
+                  appearance:"none", cursor:"pointer", fontFamily:"inherit" }}>
+                <option value="all">Toutes priorités</option>
+                <option value="haute">🔥 Haute</option>
+                <option value="moyenne">— Moyenne</option>
+                <option value="basse">↓ Basse</option>
+              </select>
+
+              {/* Récurrentes seulement */}
+              <button onClick={() => setFilterRecurring(v => !v)} style={{
+                padding:"6px 11px", fontSize:12, borderRadius:8, border:`0.5px solid var(--nf-border)`,
+                cursor:"pointer", fontFamily:"inherit", transition:"all 0.15s",
+                background: filterRecurring ? "var(--nf-green-bg)" : "var(--nf-bg-secondary)",
+                color:       filterRecurring ? "var(--nf-green-text)" : "var(--nf-text-secondary)" }}>
+                <i className="ti ti-refresh" aria-hidden="true" style={{marginRight:4, fontSize:12}} />
+                Récurrentes
+              </button>
             </div>
           )}
           <button onClick={() => { setView("compose"); setSelectedNote(null); }}
