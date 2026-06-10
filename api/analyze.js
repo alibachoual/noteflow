@@ -29,22 +29,33 @@ export default async function handler(req, res) {
         max_tokens: 1000,
         messages: [{
           role: "user",
-          content: `Tu es l'IA de NoteFlow (espace : ${spaceLabel}).
-Analyse cette note et retourne UNIQUEMENT un objet JSON valide, sans markdown.
+          content: `Tu es l'assistant de NoteFlow (espace : ${spaceLabel}).
+L'utilisateur saisit ses notes librement, souvent en langage parlé, avec des fautes, des abréviations ou une syntaxe approximative.
+Tu dois retourner UNIQUEMENT un objet JSON valide, sans markdown, sans commentaire.
 
 Note brute : "${text}"
 
 Catégories disponibles : ${catKeys}
 
+Instructions :
+- "corrected" : la note brute corrigée mot à mot — corrige UNIQUEMENT l'orthographe, la grammaire, la ponctuation et les majuscules. Ne reformule pas, ne résume pas, garde exactement le sens et les mots de l'utilisateur.
+- "title" : titre court et clair (max 10 mots), bien formulé
+- "body" : version professionnelle et structurée de la note (2-3 phrases complètes, ton neutre et professionnel)
+- "category" : choisir parmi les catégories disponibles, ou "general" si aucune ne convient
+- "priority" : évaluer objectivement selon l'urgence détectée
+- "dueLabel" : extraire une échéance si mentionnée, sinon "Pas d'échéance"
+- "actions" : 3 actions concrètes et actionnables pour traiter cette note
+
 Format JSON :
 {
+  "corrected": "saisie brute corrigée (orthographe, grammaire, ponctuation uniquement)",
   "title": "titre court (max 10 mots)",
-  "body": "note reformulée professionnellement (2-3 phrases)",
+  "body": "version professionnelle et structurée (2-3 phrases)",
   "category": "<une des catégories disponibles>",
   "priority": "haute | moyenne | basse",
   "dueLabel": "Aujourd'hui | Demain | Cette semaine | Ce mois | Pas d'échéance",
   "dueUrgent": true/false,
-  "actions": ["action 1", "action 2", "action 3"]
+  "actions": ["action concrète 1", "action concrète 2", "action concrète 3"]
 }`
         }]
       })

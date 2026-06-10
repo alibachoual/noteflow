@@ -690,26 +690,47 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
           </div>
 
           {/* Titre + corps éditables */}
-          <div className="nf-card" style={{ cursor:"default", display:"flex", flexDirection:"column", gap:8 }}>
-            <div style={{ fontSize:11, color:"var(--nf-text-tertiary)",
-              display:"flex", alignItems:"center", gap:4 }}>
-              <i className="ti ti-check" aria-hidden="true" style={{fontSize:13}} /> Note reformulée
+          <div className="nf-card" style={{ cursor:"default", display:"flex", flexDirection:"column", gap:10 }}>
+
+            {/* Saisie corrigée */}
+            {result.corrected && (
+              <div>
+                <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:5,
+                  display:"flex", alignItems:"center", gap:4 }}>
+                  <i className="ti ti-pencil-check" aria-hidden="true" style={{fontSize:13}} />
+                  Ta saisie corrigée
+                </div>
+                <div style={{ fontSize:13, color:"var(--nf-text-secondary)", lineHeight:1.6,
+                  padding:"8px 10px", background:"var(--nf-bg-secondary)",
+                  borderRadius:6, fontStyle:"italic" }}>
+                  {result.corrected}
+                </div>
+              </div>
+            )}
+
+            {/* Titre éditable */}
+            <div>
+              <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:5,
+                display:"flex", alignItems:"center", gap:4 }}>
+                <i className="ti ti-check" aria-hidden="true" style={{fontSize:13}} />
+                Version reformulée
+              </div>
+              <input
+                className="nf-input"
+                value={result.title}
+                onChange={e => setResult(r => ({ ...r, title: e.target.value }))}
+                style={{ fontSize:14, fontWeight:500, marginBottom:6 }}
+                placeholder="Titre…"
+              />
+              <textarea
+                className="nf-input"
+                value={result.body}
+                onChange={e => setResult(r => ({ ...r, body: e.target.value }))}
+                rows={2}
+                style={{ fontSize:13, resize:"vertical" }}
+                placeholder="Corps de la note…"
+              />
             </div>
-            <input
-              className="nf-input"
-              value={result.title}
-              onChange={e => setResult(r => ({ ...r, title: e.target.value }))}
-              style={{ fontSize:14, fontWeight:500 }}
-              placeholder="Titre…"
-            />
-            <textarea
-              className="nf-input"
-              value={result.body}
-              onChange={e => setResult(r => ({ ...r, body: e.target.value }))}
-              rows={2}
-              style={{ fontSize:13, resize:"vertical" }}
-              placeholder="Corps de la note…"
-            />
           </div>
 
           {/* Catégorie + Priorité + Échéance éditables */}
