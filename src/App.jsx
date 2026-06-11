@@ -14,8 +14,9 @@ const USE_MOCK = false;
 const GLOBAL_CSS = `
   *, *::before, *::after { box-sizing: border-box; }
   html, body, #root { height: 100%; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-  button, input, textarea { font-family: inherit; }
+  body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+  button, input, textarea, select { font-family: 'Inter', inherit; }
+  .nf-serif { font-family: 'Playfair Display', Georgia, serif; }
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--nf-border); border-radius: 4px; }
@@ -256,7 +257,7 @@ function NoteCard({ note, onClick, cats, showSpace }) {
     <div className="nf-card" onClick={() => onClick(note)}
       style={{ opacity: isDone ? 0.6 : 1 }}>
       <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5 }}>
-        <div style={{ fontSize:14, fontWeight:500,
+        <div className="nf-serif" style={{ fontSize:14, fontWeight:500,
           color: isDone ? "var(--nf-text-tertiary)" : "var(--nf-text-primary)",
           lineHeight:1.4, flex:1,
           textDecoration: isDone ? "line-through" : "none" }}>
@@ -394,7 +395,7 @@ function EditModal({ note, cats, onSave, onClose, onCatCreated }) {
         borderRadius:16, padding:"24px", width:480, maxWidth:"90vw",
         display:"flex", flexDirection:"column", gap:14 }}>
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ fontSize:15, fontWeight:500, color:"var(--nf-text-primary)" }}>
+          <div className="nf-serif" style={{ fontSize:17, fontWeight:500, color:"var(--nf-text-primary)" }}>
             Modifier la note
           </div>
           <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer",
@@ -569,7 +570,7 @@ function ProfileModal({ user, profile: initialProfile, onClose, onProfileUpdate 
 
         {/* Header */}
         <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-          <div style={{ fontSize:15, fontWeight:500, color:"var(--nf-text-primary)" }}>Mon profil</div>
+          <div className="nf-serif" style={{ fontSize:17, fontWeight:500, color:"var(--nf-text-primary)" }}>Mon profil</div>
           <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer",
             color:"var(--nf-text-tertiary)", fontSize:18, padding:"2px 6px" }}>
             <i className="ti ti-x" aria-hidden="true" />
@@ -1197,8 +1198,8 @@ function HomeView({ notes, user, profile, onNav }) {
 
       {/* Header salutation */}
       <div>
-        <div style={{ fontSize:24, fontWeight:500, color:"var(--nf-text-primary)",
-          letterSpacing:"-0.5px", marginBottom:4 }}>
+        <div className="nf-serif" style={{ fontSize:28, fontWeight:500, color:"var(--nf-text-primary)",
+          letterSpacing:"-0.3px", marginBottom:4 }}>
           {greeting}{prenom_cap ? `, ${prenom_cap}` : ""} 👋
         </div>
         <div style={{ fontSize:14, color:"var(--nf-text-tertiary)" }}>{dateCapStr}</div>
@@ -1244,7 +1245,7 @@ function HomeView({ notes, user, profile, onNav }) {
 
       {/* À faire */}
       <div>
-        <div style={{ fontSize:12, fontWeight:500, color:"var(--nf-text-tertiary)",
+        <div style={{ fontSize:11, fontWeight:500, color:"var(--nf-text-tertiary)",
           display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
           <span style={{ display:"flex", alignItems:"center", gap:6 }}>
             <i className="ti ti-list-check" aria-hidden="true" />
@@ -1394,7 +1395,7 @@ function Sidebar({ activeView, onNav, space, onSpaceChange, noteCount, urgentCou
       background:"var(--nf-bg-secondary)", display:"flex", flexDirection:"column", flexShrink:0 }}>
       <div style={{ padding:"14px 14px 6px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div onClick={() => { setView("home"); setSelectedNote(null); }} style={{ fontSize:17, fontWeight:500, color:"var(--nf-text-primary)", letterSpacing:"-0.3px", cursor:"pointer" }}>
-          Note<span style={{ color:"var(--nf-accent)" }}>Flow</span>
+          <span className="nf-serif">Note</span><span className="nf-serif" style={{ color:"var(--nf-accent)" }}>Flow</span>
         </div>
         <button onClick={onToggleTheme} title={theme==="dark"?"Mode clair":"Mode sombre"}
           style={{ background:"none", border:"none", cursor:"pointer", padding:"4px 6px",
@@ -1644,7 +1645,7 @@ export default function App() {
         background:"var(--nf-bg-primary)", transition:"background 0.2s" }}>
         <div style={{ padding:"12px 20px", borderBottom:`0.5px solid var(--nf-border)`,
           display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
-          <div style={{ fontSize:15, fontWeight:500, color:"var(--nf-text-primary)", flex:1 }}>
+          <div className="nf-serif" style={{ fontSize:17, fontWeight:500, color:"var(--nf-text-primary)", flex:1 }}>
             {isCat ? cats[view.slice(4)]?.label || view.slice(4) : VIEW_TITLES[view] || "Notes"}
           </div>
           {isCatView && (
