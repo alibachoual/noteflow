@@ -27,6 +27,11 @@ create index if not exists categories_user_space_idx on public.categories(user_i
 -- RLS sur categories
 alter table public.categories enable row level security;
 
+drop policy if exists "categories: lecture propriétaire"    on public.categories;
+drop policy if exists "categories: insertion propriétaire"  on public.categories;
+drop policy if exists "categories: modification propriétaire" on public.categories;
+drop policy if exists "categories: suppression propriétaire" on public.categories;
+
 create policy "categories: lecture propriétaire"
   on public.categories for select using (auth.uid() = user_id);
 create policy "categories: insertion propriétaire"
