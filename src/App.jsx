@@ -58,6 +58,12 @@ const GLOBAL_CSS = `
   }
   .nf-input:focus { border-color: var(--nf-accent); }
   @keyframes bounce { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+  select.nf-input, select.nf-select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px !important;
+  }
 `;
 
 // ─── Tokens ───────────────────────────────────────────────────────────────────
@@ -138,7 +144,7 @@ function CategorySelect({ value, onChange, cats, onCatCreated, style = {} }) {
   return (
     <div style={{ display:"flex", gap:6, alignItems:"center", ...style }}>
       <select className="nf-input" value={value} onChange={e => onChange(e.target.value)}
-        style={{ appearance:"none", flex:1, fontSize:13 }}>
+        style={{ flex:1, fontSize:13 }}>
         {Object.keys(cats).length === 0 && (
           <option value="" disabled>— aucune catégorie —</option>
         )}
@@ -412,7 +418,7 @@ function EditModal({ note, cats, onSave, onClose, onCatCreated }) {
           <div style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
             <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Priorité</label>
             <select className="nf-input" value={priority} onChange={e => setPriority(e.target.value)}
-              style={{ appearance:"none" }}>
+              style={{}}>
               {Object.entries(PRIORITIES).map(([key, meta]) => (
                 <option key={key} value={key}>{meta.label}</option>
               ))}
@@ -751,7 +757,7 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
           {isRecurring && (
             <select className="nf-input" value={recurrence}
               onChange={e => setRecurrence(e.target.value)}
-              style={{ fontSize:12, padding:"4px 10px", appearance:"none", width:"auto" }}>
+              style={{ fontSize:12, padding:"4px 10px", width:"auto" }}>
               <option value="daily">Quotidienne</option>
               <option value="weekly">Hebdomadaire</option>
               <option value="monthly">Mensuelle</option>
@@ -844,7 +850,7 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
                 className="nf-input"
                 value={result.priority}
                 onChange={e => setResult(r => ({ ...r, priority: e.target.value }))}
-                style={{ fontSize:12, padding:"4px 8px", appearance:"none" }}>
+                style={{ fontSize:12, padding:"4px 8px" }}>
                 {Object.entries(PRIORITIES).map(([key, meta]) => (
                   <option key={key} value={key}>{meta.label}</option>
                 ))}
@@ -1351,7 +1357,7 @@ export default function App() {
               <select value={filterPriority} onChange={e => setFilterPriority(e.target.value)}
                 style={{ padding:"6px 10px", fontSize:12, borderRadius:8, border:`0.5px solid var(--nf-border)`,
                   background:"var(--nf-bg-secondary)", color:"var(--nf-text-secondary)",
-                  appearance:"none", cursor:"pointer", fontFamily:"inherit" }}>
+                  cursor:"pointer", fontFamily:"inherit" }}>
                 <option value="all">Toutes priorités</option>
                 <option value="haute">🔥 Haute</option>
                 <option value="moyenne">— Moyenne</option>
