@@ -274,17 +274,106 @@ function NoteCard({ note, onClick, cats, showSpace }) {
   );
 }
 
+// ─── DuePicker — date précise ou raccourci ────────────────────────────────────
+function DuePicker({ due, dueLabel, dueUrgent, onChange }) {
+  // onChange({ due, dueLabel, dueUrgent })
+
+  function fromShortcut(label) {
+    const d = new Date();
+    switch(label) {
+      case "Aujourd'hui":  break;
+      case "Demain":       d.setDate(d.getDate()+1); break;
+      case "Cette semaine":d.setDate(d.getDate()+(7-d.getDay()||7)); break;
+      case "Ce mois":      d.setMonth(d.getMonth()+1); d.setDate(0); break;
+      case "Pas d'échéance": return onChange({ due:null, dueLabel:"Pas d'échéance", dueUrgent:false });
+      default: return;
+    }
+    const iso = d.toISOString().split("T")[0];
+    const urgent = label === "Aujourd'hui" || label === "Demain";
+    onChange({ due:iso, dueLabel:label, dueUrgent:urgent });
+  }
+
+  function fromDate(iso) {
+    if (!iso) return onChange({ due:null, dueLabel:"Pas d'échéance", dueUrgent:false });
+    const d     = new Date(iso + "T12:00:00");
+    const today = new Date(); today.setHours(0,0,0,0);
+    const diff  = Math.round((d - today) / 86400000);
+    let label;
+    if (diff === 0)      label = "Aujourd'hui";
+    else if (diff === 1) label = "Demain";
+    else label = d.toLocaleDateString("fr-FR", { day:"numeric", month:"long" });
+    onChange({ due:iso, dueLabel:label, dueUrgent:diff <= 1 });
+  }
+
+  const SHORTCUTS = ["Aujourd'hui","Demain","Cette semaine","Ce mois","Pas d'échéance"];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+      {/* Raccourcis */}
+      <div style={{ display:"flex", gap:4, flexWrap:"wrap" }}>
+        {SHORTCUTS.map(s => {
+          const active = dueLabel === s || (!due && s === "Pas d'échéance");
+          return (
+            <button key={s} onClick={() => fromShortcut(s)} style={{
+              padding:"3px 9px", fontSize:11, borderRadius:20, border:"none",
+              cursor:"pointer", fontFamily:"inherit", transition:"all 0.12s",
+              background: active ? "var(--nf-accent)" : "var(--nf-bg-secondary)",
+              color:       active ? "#fff" : "var(--nf-text-secondary)",
+              outline: active ? "none" : `0.5px solid var(--nf-border)`,
+            }}>
+              {s}
+            </button>
+          );
+        })}
+      </div>
+      {/* Date précise */}
+      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+        <input
+          type="date"
+          className="nf-input"
+          value={due || ""}
+          min={new Date().toISOString().split("T")[0]}
+          onChange={e => fromDate(e.target.value)}
+          style={{ fontSize:13, flex:1,
+            colorScheme: document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light" }}
+        />
+        {due && (
+          <button onClick={() => onChange({ due:null, dueLabel:"Pas d'échéance", dueUrgent:false })}
+            className="nf-btn-ghost" style={{ padding:"6px 10px", flexShrink:0 }}
+            title="Effacer la date">
+            <i className="ti ti-x" aria-hidden="true" style={{fontSize:13}} />
+          </button>
+        )}
+      </div>
+      {due && (
+        <div style={{ fontSize:11, color: dueUrgent ? C.red.text : "var(--nf-text-tertiary)",
+          display:"flex", alignItems:"center", gap:4 }}>
+          <i className="ti ti-clock" aria-hidden="true" style={{fontSize:12}} />
+          {dueLabel}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Edit modal ───────────────────────────────────────────────────────────────
 function EditModal({ note, cats, onSave, onClose, onCatCreated }) {
   const [title, setTitle]       = useState(note.title);
   const [body, setBody]         = useState(note.body);
   const [category, setCategory] = useState(note.category);
   const [priority, setPriority] = useState(note.priority);
+  const [due, setDue]           = useState(note.due || null);
+  const [dueLabel, setDueLabel] = useState(note.dueLabel || "Pas d'échéance");
+  const [dueUrgent, setDueUrgent] = useState(note.dueUrgent || false);
   const [saving, setSaving]     = useState(false);
+
+  function handleDueChange({ due: d, dueLabel: l, dueUrgent: u }) {
+    setDue(d); setDueLabel(l); setDueUrgent(u);
+  }
 
   async function handleSave() {
     setSaving(true);
-    await onSave(note.id, { ...note, title, body, category, priority });
+    await onSave(note.id, { ...note, title, body, category, priority, due, dueLabel, dueUrgent });
     setSaving(false);
   }
 
@@ -329,6 +418,10 @@ function EditModal({ note, cats, onSave, onClose, onCatCreated }) {
               ))}
             </select>
           </div>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+          <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Échéance</label>
+          <DuePicker due={due} dueLabel={dueLabel} dueUrgent={dueUrgent} onChange={handleDueChange} />
         </div>
         <div style={{ display:"flex", gap:8, marginTop:4 }}>
           <button onClick={handleSave} className="nf-btn-primary" disabled={saving}>
@@ -599,7 +692,9 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
 
   async function handleSave() {
     const newNote = {
-      ...result, raw:text, due:null,
+      ...result,
+      raw:text,
+      due: result.due || null,
       createdAt:new Date().toISOString(), done:false,
       id: USE_MOCK ? Date.now() : undefined, space,
       isRecurring, recurrence: isRecurring ? recurrence : null,
@@ -757,19 +852,13 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
             </div>
             <div className="nf-card" style={{ flex:1, cursor:"default" }}>
               <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:6 }}>Échéance</div>
-              <select
-                className="nf-input"
-                value={result.dueLabel}
-                onChange={e => setResult(r => ({
-                  ...r,
-                  dueLabel: e.target.value,
-                  dueUrgent: e.target.value === "Aujourd'hui" || e.target.value === "Demain"
-                }))}
-                style={{ fontSize:12, padding:"4px 8px", appearance:"none" }}>
-                {["Aujourd'hui","Demain","Cette semaine","Ce mois","Pas d'échéance"].map(v => (
-                  <option key={v} value={v}>{v}</option>
-                ))}
-              </select>
+              <DuePicker
+                due={result.due || null}
+                dueLabel={result.dueLabel}
+                dueUrgent={result.dueUrgent}
+                onChange={({ due, dueLabel, dueUrgent }) =>
+                  setResult(r => ({ ...r, due, dueLabel, dueUrgent }))}
+              />
             </div>
           </div>
 

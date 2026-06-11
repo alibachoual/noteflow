@@ -34,10 +34,10 @@ export async function updateNote(id, fields) {
       body:       fields.body,
       category:   fields.category,
       priority:   fields.priority,
-      due_date:   fields.due ?? null,
-      due_label:  fields.dueLabel ?? null,
+      due_date:   fields.due   ?? null,
+      due_label:  fields.dueLabel  ?? null,
       due_urgent: fields.dueUrgent ?? false,
-      actions:    fields.actions ?? [],
+      actions:    fields.actions   ?? [],
       updated_at: new Date().toISOString(),
     })
     .eq("id", id).select().single();
