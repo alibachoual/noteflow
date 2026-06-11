@@ -88,6 +88,7 @@ end;
 $$;
 
 -- Lier au trigger existant on_auth_user_created ou créer un second trigger
+drop trigger if exists on_auth_user_created_categories on auth.users;
 create trigger on_auth_user_created_categories
   after insert on auth.users
   for each row execute function public.handle_new_user_categories();
