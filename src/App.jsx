@@ -16,7 +16,7 @@ const GLOBAL_CSS = `
   html, body, #root { height: 100%; margin: 0; padding: 0; }
   body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
   button, input, textarea, select { font-family: 'Inter', inherit; }
-  .nf-serif { font-family: 'Playfair Display', Georgia, serif; }
+  .nf-serif { font-family: 'Lora', Georgia, serif; }
   ::-webkit-scrollbar { width: 4px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--nf-border); border-radius: 4px; }
