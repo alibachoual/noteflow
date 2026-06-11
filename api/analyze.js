@@ -1,9 +1,16 @@
 // api/analyze.js — Proxy serverless vers l'API Anthropic
 // Tourne côté serveur Vercel, la clé API n'est jamais exposée au navigateur
 
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "";
+const MAX_TEXT_LENGTH = 5000;
+const ACCEPTED_MIME   = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
 export default async function handler(req, res) {
-  // CORS — autoriser uniquement notre domaine
-  res.setHeader("Access-Control-Allow-Origin", "*");
+  // CORS — restreindre à notre domaine en production
+  const origin = req.headers.origin || "";
+  const allowedOrigin = ALLOWED_ORIGIN || origin; // fallback dev : accepte l'appelant
+  res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+  res.setHeader("Vary", "Origin");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
@@ -12,6 +19,8 @@ export default async function handler(req, res) {
 
   const { text, space, categories } = req.body;
   if (!text?.trim()) return res.status(400).json({ error: "text is required" });
+  if (text.length > MAX_TEXT_LENGTH)
+    return res.status(400).json({ error: `Texte trop long (max ${MAX_TEXT_LENGTH} caractères)` });
 
   const catKeys = categories?.join(" | ") || "mission | client | reunion | idee";
   const spaceLabel = space === "perso" ? "personnel" : "professionnel";
@@ -68,7 +77,13 @@ Format JSON :
 
     const data = await response.json();
     const raw = data.content?.find(b => b.type === "text")?.text || "";
-    const result = JSON.parse(raw.replace(/```json|```/g, "").trim());
+    let result;
+    try {
+      result = JSON.parse(raw.replace(/```json|```/g, "").trim());
+    } catch {
+      console.error("JSON parse failed. Raw response:", raw);
+      return res.status(502).json({ error: "Réponse IA invalide, veuillez réessayer." });
+    }
     return res.status(200).json(result);
 
   } catch (err) {

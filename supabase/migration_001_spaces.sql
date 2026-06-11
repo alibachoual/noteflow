@@ -64,14 +64,28 @@ begin
 end;
 $$;
 
--- 4. Insérer les catégories PRO par défaut pour l'utilisateur de démo
-insert into public.categories (user_id, space, key, label, icon, color, position)
-values
-  ('e7e65ac0-0755-4f46-9016-032d726aa2d2', 'pro', 'mission', 'Mission', 'ti-briefcase', 'purple', 0),
-  ('e7e65ac0-0755-4f46-9016-032d726aa2d2', 'pro', 'client',  'Client',  'ti-users',     'teal',   1),
-  ('e7e65ac0-0755-4f46-9016-032d726aa2d2', 'pro', 'reunion', 'Réunion', 'ti-video',     'blue',   2),
-  ('e7e65ac0-0755-4f46-9016-032d726aa2d2', 'pro', 'idee',    'Idée',    'ti-bulb',      'amber',  3)
-on conflict (user_id, space, key) do nothing;
+-- 4. Trigger : créer les catégories par défaut pour tout nouvel utilisateur
+create or replace function public.handle_new_user_categories()
+returns trigger language plpgsql security definer as $$
+begin
+  insert into public.categories (user_id, space, key, label, icon, color, position)
+  values
+    (new.id, 'pro',   'mission', 'Mission', 'ti-briefcase', 'purple', 0),
+    (new.id, 'pro',   'client',  'Client',  'ti-users',     'teal',   1),
+    (new.id, 'pro',   'reunion', 'Réunion', 'ti-video',     'blue',   2),
+    (new.id, 'pro',   'idee',    'Idée',    'ti-bulb',      'amber',  3),
+    (new.id, 'perso', 'perso',   'Personnel','ti-home',     'green',  0),
+    (new.id, 'perso', 'loisir',  'Loisirs', 'ti-confetti',  'amber',  1),
+    (new.id, 'perso', 'sante',   'Santé',   'ti-heart',     'red',    2)
+  on conflict (user_id, space, key) do nothing;
+  return new;
+end;
+$$;
+
+-- Lier au trigger existant on_auth_user_created ou créer un second trigger
+create trigger on_auth_user_created_categories
+  after insert on auth.users
+  for each row execute function public.handle_new_user_categories();
 
 -- 5. Mettre à jour les notes existantes avec space = 'pro'
 update public.notes set space = 'pro' where space is null or space = '';

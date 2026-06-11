@@ -99,6 +99,34 @@ create table public.digests (
 create index digests_user_date_idx   on public.digests(user_id, digest_date desc);
 
 
+-- ─── Table : profiles ────────────────────────────────────────────────────────
+-- Données complémentaires de l'utilisateur (nom, langue, avatar)
+create table public.profiles (
+  id          uuid primary key references auth.users(id) on delete cascade,
+  first_name  text,
+  last_name   text,
+  language    text not null default 'fr' check (language in ('fr', 'en')),
+  avatar_url  text,
+  updated_at  timestamptz not null default now()
+);
+
+create index profiles_id_idx on public.profiles(id);
+
+-- Crée automatiquement une ligne profil à l'inscription
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer as $$
+begin
+  insert into public.profiles (id) values (new.id)
+  on conflict (id) do nothing;
+  return new;
+end;
+$$;
+
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function public.handle_new_user();
+
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Row Level Security (RLS)
 -- Chaque utilisateur ne voit que ses propres données
@@ -107,6 +135,15 @@ create index digests_user_date_idx   on public.digests(user_id, digest_date desc
 alter table public.notes     enable row level security;
 alter table public.reminders enable row level security;
 alter table public.digests   enable row level security;
+alter table public.profiles  enable row level security;
+
+-- Profiles
+create policy "profiles: lecture propriétaire"
+  on public.profiles for select using (auth.uid() = id);
+create policy "profiles: insertion propriétaire"
+  on public.profiles for insert with check (auth.uid() = id);
+create policy "profiles: modification propriétaire"
+  on public.profiles for update using (auth.uid() = id);
 
 -- Notes
 create policy "notes: lecture propriétaire"

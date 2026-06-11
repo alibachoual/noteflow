@@ -72,11 +72,15 @@ export function calcNextDue(from, recurrence, recurrenceDay) {
     case "weekly":
       d.setDate(d.getDate() + 7);
       break;
-    case "monthly":
+    case "monthly": {
+      const targetDay = recurrenceDay || 1;
+      d.setDate(1); // évite le débordement (ex: 31 jan → 3 mars)
       d.setMonth(d.getMonth() + 1);
-      if (recurrenceDay) d.setDate(recurrenceDay);
-      else d.setDate(1); // 1er du mois suivant par défaut
+      // Clamp au dernier jour réel du mois cible
+      const maxDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+      d.setDate(Math.min(targetDay, maxDay));
       break;
+    }
     case "yearly":
       d.setFullYear(d.getFullYear() + 1);
       break;
@@ -153,9 +157,13 @@ export async function updateProfile({ first_name, last_name, language }) {
   return data;
 }
 
+const ACCEPTED_MIME = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
 export async function uploadAvatar(file) {
+  if (!ACCEPTED_MIME.includes(file.type))
+    throw new Error("Type de fichier non accepté (JPEG, PNG, WebP ou GIF uniquement).");
   const { data: { user } } = await supabase.auth.getUser();
-  const ext  = file.name.split(".").pop();
+  const ext  = file.name.split(".").pop().toLowerCase();
   const path = `${user.id}/avatar.${ext}`;
 
   const { error: upErr } = await supabase.storage

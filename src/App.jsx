@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Component } from "react";
 import { MOCK_NOTES, CATEGORIES, setCategories, PRIORITIES } from "./data/mockNotes";
 import AuthScreen from "./components/AuthScreen";
 import { fetchNotes, createNote, updateNote, deleteNote, markNoteDone,
@@ -111,6 +111,14 @@ function CategorySelect({ value, onChange, cats, onCatCreated, style = {} }) {
     const label = newLabel.trim();
     if (!label) return;
     const key = slugify(label);
+    if (!key) return;
+    // Rejeter si la clé existe déjà dans les catégories courantes
+    if (cats && cats[key]) {
+      setNewLabel("");
+      setCreating(false);
+      onChange(key);
+      return;
+    }
     const cat = { key, label, icon:"ti-tag", color:"purple" };
     await onCatCreated(cat);
     onChange(key);
@@ -551,7 +559,8 @@ function ProfileModal({ user, profile: initialProfile, onClose, onProfileUpdate 
 
   async function handlePassword() {
     if (newPwd !== newPwd2) { setError("Les mots de passe ne correspondent pas."); return; }
-    if (newPwd.length < 6)  { setError("Minimum 6 caractères."); return; }
+    if (newPwd.length < 8)  { setError("Minimum 8 caractères."); return; }
+    if (!/\d/.test(newPwd)) { setError("Le mot de passe doit contenir au moins un chiffre."); return; }
     setPwdSaving(true); setError(null); setSuccess(null);
     try {
       await changePassword(newPwd);
@@ -1777,4 +1786,30 @@ export default function App() {
       )}
     </div>
   );
+}
+
+// ─── ErrorBoundary ────────────────────────────────────────────────────────────
+export class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  componentDidCatch(error, info) { console.error("NoteFlow ErrorBoundary:", error, info); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center",
+        justifyContent:"center", height:"100vh", gap:12, fontFamily:"Inter, sans-serif",
+        color:"var(--nf-text-primary, #333)", background:"var(--nf-bg-secondary, #f5f5f5)" }}>
+        <div style={{ fontSize:32 }}>⚠️</div>
+        <div style={{ fontSize:16, fontWeight:500 }}>Une erreur inattendue s'est produite</div>
+        <div style={{ fontSize:13, color:"#888", maxWidth:400, textAlign:"center" }}>
+          {this.state.error.message}
+        </div>
+        <button onClick={() => window.location.reload()}
+          style={{ marginTop:8, padding:"8px 18px", borderRadius:8, border:"none",
+            background:"#6366f1", color:"#fff", cursor:"pointer", fontSize:13 }}>
+          Recharger l'application
+        </button>
+      </div>
+    );
+  }
 }
