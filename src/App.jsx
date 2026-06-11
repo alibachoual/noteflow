@@ -938,45 +938,153 @@ function TodayView({ notes, cats, onNoteClick }) {
 }
 
 // ─── Digest ───────────────────────────────────────────────────────────────────
-function DigestView({ notes }) {
-  const sorted = [...notes].filter(n => !n.done)
-    .sort((a,b) => ({haute:0,moyenne:1,basse:2})[a.priority]-({haute:0,moyenne:1,basse:2})[b.priority])
-    .slice(0,3);
+function HomeView({ notes, user, onNav }) {
+  const now    = new Date();
+  const hour   = now.getHours();
+  const prenom = user?.email?.split("@")[0]?.split(".")?.[0] ?? "";
+  const prenom_cap = prenom.charAt(0).toUpperCase() + prenom.slice(1);
+
+  const greeting = hour < 6  ? "Bonne nuit" :
+                   hour < 12 ? "Bonjour" :
+                   hour < 18 ? "Bon après-midi" : "Bonsoir";
+
+  const dateStr = now.toLocaleDateString("fr-FR", {
+    weekday:"long", day:"numeric", month:"long", year:"numeric"
+  });
+  const dateCapStr = dateStr.charAt(0).toUpperCase() + dateStr.slice(1);
+
+  const open     = notes.filter(n => !n.done);
+  const urgent   = notes.filter(n => n.dueUrgent && !n.done);
+  const dueToday = notes.filter(n => {
+    if (n.done) return false;
+    if (!n.due) return false;
+    return n.due <= now.toISOString().split("T")[0];
+  });
+  const recurring = notes.filter(n => n.isRecurring && !n.done);
+  const doneCount = notes.filter(n => n.done && !n.isRecurring).length;
+
+  // Top 5 prioritaires
+  const top = [...open]
+    .sort((a,b) => {
+      const po = {haute:0,moyenne:1,basse:2};
+      if (a.dueUrgent !== b.dueUrgent) return a.dueUrgent ? -1 : 1;
+      return po[a.priority] - po[b.priority];
+    })
+    .slice(0, 5);
+
+  const statCards = [
+    { n:open.length,     l:"À traiter",  icon:"ti-layout-list", c:"var(--nf-text-primary)" },
+    { n:urgent.length,   l:"Urgentes",   icon:"ti-flame",       c:C.red.text,  bg:C.red.bg },
+    { n:dueToday.length, l:"Dues aujourd'hui", icon:"ti-clock", c:C.amber.text, bg:C.amber.bg },
+    { n:recurring.length,l:"Récurrentes",icon:"ti-refresh",     c:C.green.text, bg:C.green.bg },
+  ];
+
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-      <div style={{ background:"var(--nf-accent-subtle)", border:`0.5px solid var(--nf-accent)`,
-        borderRadius:12, padding:"14px 16px", opacity:0.9 }}>
-        <div style={{ fontSize:13, fontWeight:500, color:"var(--nf-accent-hover)", marginBottom:10,
-          display:"flex", alignItems:"center", gap:6 }}>
-          <i className="ti ti-sun" aria-hidden="true" />
-          Récap du {new Date().toLocaleDateString("fr-FR",
-            { weekday:"long", day:"numeric", month:"long", year:"numeric" })}
+    <div style={{ display:"flex", flexDirection:"column", gap:24, maxWidth:640, padding:"4px 0" }}>
+
+      {/* Header salutation */}
+      <div>
+        <div style={{ fontSize:24, fontWeight:500, color:"var(--nf-text-primary)",
+          letterSpacing:"-0.5px", marginBottom:4 }}>
+          {greeting}{prenom_cap ? `, ${prenom_cap}` : ""} 👋
         </div>
-        {[
-          { icon:"ti-layout-list", text:`${notes.length} notes au total` },
-          { icon:"ti-flame",       text:`${notes.filter(n=>n.dueUrgent&&!n.done).length} urgences en attente` },
-          { icon:"ti-circle-check",text:`${notes.filter(n=>n.done).length} notes complétées` },
-        ].map(({ icon, text }) => (
-          <div key={text} style={{ display:"flex", alignItems:"center", gap:8,
-            fontSize:12, color:"var(--nf-accent)", paddingTop:4 }}>
-            <i className={`ti ${icon}`} aria-hidden="true" style={{fontSize:14}} />{text}
+        <div style={{ fontSize:14, color:"var(--nf-text-tertiary)" }}>{dateCapStr}</div>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
+        {statCards.map(({ n, l, icon, c, bg }) => (
+          <div key={l} style={{ background: bg || "var(--nf-bg-secondary)",
+            border:`0.5px solid var(--nf-border)`, borderRadius:12, padding:"14px 14px 12px" }}>
+            <i className={`ti ${icon}`} aria-hidden="true"
+              style={{ fontSize:18, color:c, display:"block", marginBottom:8 }} />
+            <div style={{ fontSize:26, fontWeight:500, color:c, lineHeight:1 }}>{n}</div>
+            <div style={{ fontSize:11, color:c, opacity:0.8, marginTop:4 }}>{l}</div>
           </div>
         ))}
       </div>
-      <div style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>
-        Ce que l'IA te suggère de faire en premier
-      </div>
-      {sorted.map((n, i) => (
-        <div key={n.id} className="nf-card" style={{ cursor:"default" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
-            <span style={{ fontSize:13, fontWeight:500, color:"var(--nf-text-primary)", flex:1 }}>
-              {i+1} · {n.title}
-            </span>
-            <SpacePill space={n.space} />
+
+      {/* Urgences */}
+      {urgent.length > 0 && (
+        <div>
+          <div style={{ fontSize:12, fontWeight:500, color:C.red.text,
+            display:"flex", alignItems:"center", gap:6, marginBottom:10 }}>
+            <i className="ti ti-bell-ringing" aria-hidden="true" />
+            {urgent.length} relance{urgent.length > 1 ? "s" : ""} urgente{urgent.length > 1 ? "s" : ""}
           </div>
-          <div style={{ fontSize:12, color:"var(--nf-text-secondary)" }}>{n.actions[0]}</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {urgent.map(n => (
+              <div key={n.id} onClick={() => onNav("all")}
+                style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
+                  background:C.red.bg, border:`0.5px solid ${C.red.border}`,
+                  borderRadius:10, cursor:"pointer" }}>
+                <i className="ti ti-alert-triangle" aria-hidden="true"
+                  style={{ fontSize:15, color:C.red.text, flexShrink:0 }} />
+                <div style={{ flex:1, fontSize:13, fontWeight:500, color:C.red.text }}>{n.title}</div>
+                <div style={{ fontSize:11, color:C.red.text, opacity:0.8 }}>{n.dueLabel}</div>
+                <SpacePill space={n.space} />
+              </div>
+            ))}
+          </div>
         </div>
-      ))}
+      )}
+
+      {/* À faire */}
+      <div>
+        <div style={{ fontSize:12, fontWeight:500, color:"var(--nf-text-tertiary)",
+          display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:10 }}>
+          <span style={{ display:"flex", alignItems:"center", gap:6 }}>
+            <i className="ti ti-list-check" aria-hidden="true" />
+            {top.length > 0 ? `Les ${top.length} prochaines à traiter` : "Rien à traiter"}
+          </span>
+          {open.length > 5 && (
+            <button onClick={() => onNav("all")}
+              style={{ background:"none", border:"none", cursor:"pointer",
+                fontSize:12, color:"var(--nf-accent)", fontFamily:"inherit" }}>
+              Voir tout ({open.length}) →
+            </button>
+          )}
+        </div>
+        {top.length === 0 ? (
+          <div style={{ textAlign:"center", padding:"32px 0",
+            color:"var(--nf-text-tertiary)", fontSize:14 }}>
+            <i className="ti ti-circle-check" aria-hidden="true"
+              style={{ fontSize:36, display:"block", marginBottom:10,
+                color:"var(--nf-green-text)" }} />
+            Tout est à jour, bravo ! 🎉
+          </div>
+        ) : (
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            {top.map(n => (
+              <div key={n.id} onClick={() => onNav("all")}
+                style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
+                  background:"var(--nf-bg-primary)", border:`0.5px solid var(--nf-border)`,
+                  borderRadius:10, cursor:"pointer", transition:"border-color 0.15s" }}
+                onMouseEnter={e => e.currentTarget.style.borderColor="var(--nf-border-hover)"}
+                onMouseLeave={e => e.currentTarget.style.borderColor="var(--nf-border)"}>
+                <Prio priority={n.priority} />
+                <div style={{ flex:1, fontSize:13, fontWeight:500,
+                  color:"var(--nf-text-primary)" }}>{n.title}</div>
+                {n.isRecurring && <RecurringBadge recurrence={n.recurrence} />}
+                {n.dueLabel && n.dueLabel !== "Pas d'échéance" && (
+                  <span style={{ fontSize:11, color: n.dueUrgent ? C.red.text : "var(--nf-text-tertiary)",
+                    display:"flex", alignItems:"center", gap:3, flexShrink:0 }}>
+                    <i className="ti ti-clock" aria-hidden="true" style={{fontSize:12}} />
+                    {n.dueLabel}
+                  </span>
+                )}
+                <SpacePill space={n.space} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Bouton nouvelle note */}
+      <button onClick={() => onNav("compose")} className="nf-btn-primary"
+        style={{ alignSelf:"flex-start", padding:"9px 18px", fontSize:14 }}>
+        <i className="ti ti-plus" aria-hidden="true" /> Nouvelle note
+      </button>
     </div>
   );
 }
@@ -1063,7 +1171,7 @@ function RightPanel({ notes, space, cats }) {
 function Sidebar({ activeView, onNav, space, onSpaceChange, noteCount, urgentCount,
                    cats, onManageCats, user, theme, onToggleTheme }) {
   const nav = [
-    { id:"digest",  icon:"ti-newspaper",   label:"Récap du jour" },
+    { id:"home",  icon:"ti-home",        label:"Accueil" },
     { id:"all",     icon:"ti-layout-list", label:"Toutes les notes", badge:noteCount },
     { id:"today",   icon:"ti-sun",         label:"Aujourd'hui",      badge:urgentCount, urgent:true },
     { id:"compose", icon:"ti-plus",        label:"Nouvelle note" },
@@ -1072,7 +1180,7 @@ function Sidebar({ activeView, onNav, space, onSpaceChange, noteCount, urgentCou
     <div style={{ width:210, borderRight:`0.5px solid var(--nf-border)`,
       background:"var(--nf-bg-secondary)", display:"flex", flexDirection:"column", flexShrink:0 }}>
       <div style={{ padding:"14px 14px 6px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ fontSize:17, fontWeight:500, color:"var(--nf-text-primary)", letterSpacing:"-0.3px" }}>
+        <div onClick={() => { setView("home"); setSelectedNote(null); }} style={{ fontSize:17, fontWeight:500, color:"var(--nf-text-primary)", letterSpacing:"-0.3px", cursor:"pointer" }}>
           Note<span style={{ color:"var(--nf-accent)" }}>Flow</span>
         </div>
         <button onClick={onToggleTheme} title={theme==="dark"?"Mode clair":"Mode sombre"}
@@ -1153,7 +1261,7 @@ const VIEW_TITLES = {
 
 export default function App() {
   const [allNotes, setAllNotes]         = useState([]);
-  const [view, setView]                 = useState("digest");
+  const [view, setView]                 = useState("home");
   const [space, setSpace]               = useState("pro");
   const [cats, setCats]                 = useState({});
   const [selectedNote, setSelectedNote] = useState(null);
@@ -1210,7 +1318,7 @@ export default function App() {
 
   function handleSpaceChange(s) {
     setSpace(s);
-    setView(v => v === "digest" ? "digest" : "all");
+    setView(v => v === "home" ? "home" : "all");
     setSelectedNote(null); setSearch("");
   }
 
@@ -1272,7 +1380,7 @@ export default function App() {
   // Notes filtrées selon l'espace actif (sauf today/digest qui montrent tout)
   const spaceNotes = allNotes.filter(n => n.space === space);
   const isCat = view.startsWith("cat:");
-  const baseNotes = (view === "today" || view === "digest") ? allNotes : spaceNotes;
+  const baseNotes = view === "today" ? allNotes : spaceNotes;
 
   const filtered = baseNotes
     .filter(n => {
@@ -1417,7 +1525,7 @@ export default function App() {
           {view === "today" && !selectedNote && (
             <TodayView notes={allNotes} cats={cats} onNoteClick={setSelectedNote} />
           )}
-          {view === "digest" && !selectedNote && <DigestView notes={allNotes} />}
+          {view === "home" && !selectedNote && <HomeView notes={allNotes} user={user} onNav={id => { setView(id); setSelectedNote(null); setSearch(""); }} />}
         </div>
       </div>
 
