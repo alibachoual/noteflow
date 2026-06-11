@@ -4,6 +4,7 @@ import AuthScreen from "./components/AuthScreen";
 import { fetchNotes, createNote, updateNote, deleteNote, markNoteDone,
          fetchCategories, createCategory, deleteCategory,
          calcNextDue, resetRecurring,
+         fetchProfile, updateProfile, uploadAvatar, changePassword,
          onAuthChange, signOut } from "./lib/supabase";
 import { applyTheme, getInitialTheme } from "./theme";
 
@@ -477,6 +478,217 @@ function DeleteConfirm({ note, onConfirm, onClose }) {
   );
 }
 
+// ─── Avatar ───────────────────────────────────────────────────────────────────
+function Avatar({ profile, size = 36, onClick }) {
+  const initials = [profile?.first_name, profile?.last_name]
+    .filter(Boolean).map(s => s[0].toUpperCase()).join("")
+    || "?";
+  const colors = ["#534AB7","#0F6E56","#185FA5","#854F0B","#A32D2D"];
+  const idx    = (profile?.first_name?.charCodeAt(0) || 0) % colors.length;
+
+  if (profile?.avatar_url) {
+    return (
+      <img src={profile.avatar_url} alt="avatar"
+        onClick={onClick}
+        style={{ width:size, height:size, borderRadius:"50%", objectFit:"cover",
+          cursor:onClick?"pointer":"default", flexShrink:0,
+          border:"1.5px solid var(--nf-border)" }} />
+    );
+  }
+  return (
+    <div onClick={onClick} style={{
+      width:size, height:size, borderRadius:"50%", flexShrink:0,
+      background:colors[idx], color:"#fff",
+      display:"flex", alignItems:"center", justifyContent:"center",
+      fontSize:size * 0.38, fontWeight:600, cursor:onClick?"pointer":"default",
+      border:"1.5px solid var(--nf-border)", userSelect:"none" }}>
+      {initials}
+    </div>
+  );
+}
+
+// ─── Profile modal ────────────────────────────────────────────────────────────
+function ProfileModal({ user, profile: initialProfile, onClose, onProfileUpdate }) {
+  const [profile, setProfile]     = useState(initialProfile || {});
+  const [firstName, setFirstName] = useState(initialProfile?.first_name || "");
+  const [lastName, setLastName]   = useState(initialProfile?.last_name  || "");
+  const [language, setLanguage]   = useState(initialProfile?.language   || "fr");
+  const [newPwd, setNewPwd]       = useState("");
+  const [newPwd2, setNewPwd2]     = useState("");
+  const [saving, setSaving]       = useState(false);
+  const [pwdSaving, setPwdSaving] = useState(false);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  const [success, setSuccess]     = useState(null);
+  const [error, setError]         = useState(null);
+  const fileRef = useRef();
+
+  async function handleSaveProfile() {
+    setSaving(true); setError(null); setSuccess(null);
+    try {
+      const updated = await updateProfile({ first_name:firstName, last_name:lastName, language });
+      setProfile(updated);
+      onProfileUpdate(updated);
+      setSuccess("Profil mis à jour.");
+    } catch(e) { setError(e.message); }
+    setSaving(false);
+  }
+
+  async function handleAvatar(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { setError("Fichier trop lourd (max 2 Mo)."); return; }
+    setAvatarLoading(true); setError(null);
+    try {
+      const url = await uploadAvatar(file);
+      const updated = { ...profile, avatar_url: url };
+      setProfile(updated);
+      onProfileUpdate(updated);
+      setSuccess("Avatar mis à jour.");
+    } catch(e) { setError("Erreur upload : " + e.message); }
+    setAvatarLoading(false);
+  }
+
+  async function handlePassword() {
+    if (newPwd !== newPwd2) { setError("Les mots de passe ne correspondent pas."); return; }
+    if (newPwd.length < 6)  { setError("Minimum 6 caractères."); return; }
+    setPwdSaving(true); setError(null); setSuccess(null);
+    try {
+      await changePassword(newPwd);
+      setNewPwd(""); setNewPwd2("");
+      setSuccess("Mot de passe mis à jour.");
+    } catch(e) { setError(e.message); }
+    setPwdSaving(false);
+  }
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:100,
+      display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <div style={{ background:"var(--nf-bg-primary)", border:"0.5px solid var(--nf-border)",
+        borderRadius:16, padding:"24px", width:420, maxWidth:"90vw",
+        display:"flex", flexDirection:"column", gap:20, maxHeight:"90vh", overflowY:"auto" }}>
+
+        {/* Header */}
+        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <div style={{ fontSize:15, fontWeight:500, color:"var(--nf-text-primary)" }}>Mon profil</div>
+          <button onClick={onClose} style={{ background:"none", border:"none", cursor:"pointer",
+            color:"var(--nf-text-tertiary)", fontSize:18, padding:"2px 6px" }}>
+            <i className="ti ti-x" aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Avatar */}
+        <div style={{ display:"flex", alignItems:"center", gap:16 }}>
+          <div style={{ position:"relative" }}>
+            <Avatar profile={profile} size={64} />
+            {avatarLoading && (
+              <div style={{ position:"absolute", inset:0, borderRadius:"50%",
+                background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center",
+                justifyContent:"center" }}>
+                <i className="ti ti-loader-2" style={{ color:"#fff", fontSize:20,
+                  animation:"spin 1s linear infinite" }} />
+              </div>
+            )}
+          </div>
+          <div>
+            <input ref={fileRef} type="file" accept="image/*"
+              style={{ display:"none" }} onChange={handleAvatar} />
+            <button onClick={() => fileRef.current?.click()}
+              className="nf-btn-ghost" style={{ fontSize:12 }}>
+              <i className="ti ti-upload" aria-hidden="true" /> Changer la photo
+            </button>
+            <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginTop:5 }}>
+              JPG, PNG, WebP · max 2 Mo
+            </div>
+          </div>
+        </div>
+
+        {/* Infos */}
+        <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ fontSize:12, fontWeight:500, color:"var(--nf-text-tertiary)",
+            textTransform:"uppercase", letterSpacing:"0.5px" }}>Informations</div>
+          <div style={{ display:"flex", gap:10 }}>
+            <div style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
+              <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Prénom</label>
+              <input className="nf-input" value={firstName}
+                onChange={e => setFirstName(e.target.value)}
+                placeholder="Prénom" />
+            </div>
+            <div style={{ flex:1, display:"flex", flexDirection:"column", gap:4 }}>
+              <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Nom</label>
+              <input className="nf-input" value={lastName}
+                onChange={e => setLastName(e.target.value)}
+                placeholder="Nom" />
+            </div>
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+            <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Email</label>
+            <input className="nf-input" value={user?.email || ""} disabled
+              style={{ opacity:0.6, cursor:"not-allowed" }} />
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+            <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Langue</label>
+            <select className="nf-input" value={language}
+              onChange={e => setLanguage(e.target.value)}>
+              <option value="fr">🇫🇷 Français</option>
+              <option value="en">🇬🇧 English</option>
+            </select>
+          </div>
+          <button onClick={handleSaveProfile} className="nf-btn-primary"
+            disabled={saving} style={{ alignSelf:"flex-start" }}>
+            <i className="ti ti-device-floppy" aria-hidden="true" />
+            {saving ? "Sauvegarde…" : "Enregistrer"}
+          </button>
+        </div>
+
+        {/* Mot de passe */}
+        <div style={{ display:"flex", flexDirection:"column", gap:12,
+          borderTop:"0.5px solid var(--nf-border)", paddingTop:16 }}>
+          <div style={{ fontSize:12, fontWeight:500, color:"var(--nf-text-tertiary)",
+            textTransform:"uppercase", letterSpacing:"0.5px" }}>Mot de passe</div>
+          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+            <input className="nf-input" type="password" value={newPwd}
+              onChange={e => setNewPwd(e.target.value)}
+              placeholder="Nouveau mot de passe" />
+            <input className="nf-input" type="password" value={newPwd2}
+              onChange={e => setNewPwd2(e.target.value)}
+              placeholder="Confirmer le mot de passe"
+              onKeyDown={e => e.key === "Enter" && handlePassword()} />
+          </div>
+          <button onClick={handlePassword} className="nf-btn-ghost"
+            disabled={pwdSaving || !newPwd} style={{ alignSelf:"flex-start" }}>
+            <i className="ti ti-lock" aria-hidden="true" />
+            {pwdSaving ? "Mise à jour…" : "Changer le mot de passe"}
+          </button>
+        </div>
+
+        {/* Feedback */}
+        {success && (
+          <div style={{ padding:"9px 12px", background:"var(--nf-green-bg)",
+            color:"var(--nf-green-text)", borderRadius:8, fontSize:13,
+            display:"flex", alignItems:"center", gap:6 }}>
+            <i className="ti ti-circle-check" aria-hidden="true" />{success}
+          </div>
+        )}
+        {error && (
+          <div style={{ padding:"9px 12px", background:C.red.bg,
+            color:C.red.text, borderRadius:8, fontSize:13,
+            display:"flex", alignItems:"center", gap:6 }}>
+            <i className="ti ti-alert-triangle" aria-hidden="true" />{error}
+          </div>
+        )}
+
+        {/* Déconnexion */}
+        <button onClick={signOut} className="nf-btn-ghost"
+          style={{ color:C.red.text, borderColor:C.red.border, alignSelf:"flex-start" }}>
+          <i className="ti ti-logout" aria-hidden="true" /> Déconnexion
+        </button>
+
+        <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
+      </div>
+    </div>
+  );
+}
+
 // ─── Category manager ─────────────────────────────────────────────────────────
 function CategoryManager({ space, cats, onAdd, onDelete, onClose }) {
   const [label, setLabel]       = useState("");
@@ -938,11 +1150,12 @@ function TodayView({ notes, cats, onNoteClick }) {
 }
 
 // ─── Digest ───────────────────────────────────────────────────────────────────
-function HomeView({ notes, user, onNav }) {
+function HomeView({ notes, user, profile, onNav }) {
   const now    = new Date();
   const hour   = now.getHours();
-  const prenom = user?.email?.split("@")[0]?.split(".")?.[0] ?? "";
-  const prenom_cap = prenom.charAt(0).toUpperCase() + prenom.slice(1);
+  const prenom_cap = profile?.first_name
+    ? profile.first_name
+    : (user?.email?.split("@")[0]?.split(".")?.[0] ?? "");
 
   const greeting = hour < 6  ? "Bonne nuit" :
                    hour < 12 ? "Bonjour" :
@@ -1169,7 +1382,7 @@ function RightPanel({ notes, space, cats }) {
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 function Sidebar({ activeView, onNav, space, onSpaceChange, noteCount, urgentCount,
-                   cats, onManageCats, user, theme, onToggleTheme }) {
+                   cats, onManageCats, user, profile, onOpenProfile, theme, onToggleTheme }) {
   const nav = [
     { id:"home",  icon:"ti-home",        label:"Accueil" },
     { id:"all",     icon:"ti-layout-list", label:"Toutes les notes", badge:noteCount },
@@ -1231,23 +1444,26 @@ function Sidebar({ activeView, onNav, space, onSpaceChange, noteCount, urgentCou
       </nav>
 
       <div style={{ padding:"12px 14px", borderTop:`0.5px solid var(--nf-border)` }}>
-        {user && (
-          <div style={{ fontSize:11, color:"var(--nf-text-tertiary)", marginBottom:6,
-            overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
-            {user.email}
+        <button onClick={onOpenProfile}
+          style={{ display:"flex", alignItems:"center", gap:10, width:"100%",
+            background:"none", border:"none", cursor:"pointer", padding:"4px 0",
+            textAlign:"left" }}>
+          <Avatar profile={profile} size={30} />
+          <div style={{ flex:1, minWidth:0 }}>
+            {(profile?.first_name || profile?.last_name) ? (
+              <div style={{ fontSize:13, fontWeight:500, color:"var(--nf-text-primary)",
+                overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {[profile.first_name, profile.last_name].filter(Boolean).join(" ")}
+              </div>
+            ) : null}
+            <div style={{ fontSize:11, color:"var(--nf-text-tertiary)",
+              overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+              {user?.email}
+            </div>
           </div>
-        )}
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-          <div style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>
-            {new Date().toLocaleDateString("fr-FR", { day:"numeric", month:"long" })}
-          </div>
-          {!USE_MOCK && user && (
-            <button onClick={signOut} style={{ background:"none", border:"none", cursor:"pointer",
-              fontSize:11, color:"var(--nf-text-tertiary)" }}>
-              Déconnexion
-            </button>
-          )}
-        </div>
+          <i className="ti ti-settings" aria-hidden="true"
+            style={{ fontSize:14, color:"var(--nf-text-tertiary)", flexShrink:0 }} />
+        </button>
       </div>
     </div>
   );
@@ -1273,6 +1489,8 @@ export default function App() {
   const [filterPriority, setFilterPriority] = useState("all"); // "all" | "haute" | "moyenne" | "basse"
   const [filterRecurring, setFilterRecurring] = useState(false);
   const [user, setUser]                 = useState(USE_MOCK ? { email:"demo@noteflow.app" } : null);
+  const [profile, setProfile]           = useState(null);
+  const [showProfile, setShowProfile]   = useState(false);
   const [loading, setLoading]           = useState(!USE_MOCK);
   const [theme, setTheme]               = useState(() => getInitialTheme());
 
@@ -1312,6 +1530,7 @@ export default function App() {
     if (USE_MOCK) return;
     const { data: { subscription } } = onAuthChange(u => {
       setUser(u); setLoading(false);
+      if (u) fetchProfile().then(setProfile);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -1417,7 +1636,8 @@ export default function App() {
         noteCount={spaceNotes.filter(n=>!n.done).length}
         urgentCount={allNotes.filter(n=>n.dueUrgent&&!n.done).length}
         cats={cats} onManageCats={() => setShowCatMgr(true)}
-        user={user} theme={theme} onToggleTheme={() => setTheme(t => t==="light"?"dark":"light")}
+        user={user} profile={profile} onOpenProfile={() => setShowProfile(true)}
+        theme={theme} onToggleTheme={() => setTheme(t => t==="light"?"dark":"light")}
       />
 
       <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden",
@@ -1525,7 +1745,7 @@ export default function App() {
           {view === "today" && !selectedNote && (
             <TodayView notes={allNotes} cats={cats} onNoteClick={setSelectedNote} />
           )}
-          {view === "home" && !selectedNote && <HomeView notes={allNotes} user={user} onNav={id => { setView(id); setSelectedNote(null); setSearch(""); }} />}
+          {view === "home" && !selectedNote && <HomeView notes={allNotes} user={user} profile={profile} onNav={id => { setView(id); setSelectedNote(null); setSearch(""); }} />}
         </div>
       </div>
 
@@ -1545,6 +1765,14 @@ export default function App() {
           onAdd={handleAddCategory}
           onDelete={handleDeleteCategory}
           onClose={() => setShowCatMgr(false)} />
+      )}
+      {showProfile && (
+        <ProfileModal
+          user={user}
+          profile={profile}
+          onClose={() => { setShowProfile(false); }}
+          onProfileUpdate={p => setProfile(p)}
+        />
       )}
     </div>
   );

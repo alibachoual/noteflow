@@ -130,6 +130,52 @@ async function createReminders(noteId, userId, dueDate) {
   if (reminders.length) await supabase.from("reminders").insert(reminders);
 }
 
+
+// ─── Profile ──────────────────────────────────────────────────────────────────
+
+export async function fetchProfile() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from("profiles").select("*").eq("id", user.id).single();
+  if (error) return null;
+  return data;
+}
+
+export async function updateProfile({ first_name, last_name, language }) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data, error } = await supabase
+    .from("profiles")
+    .upsert({ id: user.id, first_name, last_name, language, updated_at: new Date().toISOString() },
+      { on_conflict: "id" })
+    .select().single();
+  if (error) throw error;
+  return data;
+}
+
+export async function uploadAvatar(file) {
+  const { data: { user } } = await supabase.auth.getUser();
+  const ext  = file.name.split(".").pop();
+  const path = `${user.id}/avatar.${ext}`;
+
+  const { error: upErr } = await supabase.storage
+    .from("avatars")
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if (upErr) throw upErr;
+
+  const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+  const url = data.publicUrl + "?t=" + Date.now(); // cache bust
+
+  await supabase.from("profiles")
+    .upsert({ id: user.id, avatar_url: url, updated_at: new Date().toISOString() },
+      { on_conflict: "id" });
+  return url;
+}
+
+export async function changePassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  if (error) throw error;
+}
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 export async function signIn(email, password) {
