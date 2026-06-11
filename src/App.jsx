@@ -1189,7 +1189,7 @@ function HomeView({ notes, user, profile, onNav }) {
   const statCards = [
     { n:open.length,     l:"À traiter",  icon:"ti-layout-list", c:"var(--nf-text-primary)" },
     { n:urgent.length,   l:"Urgentes",   icon:"ti-flame",       c:C.red.text,  bg:C.red.bg },
-    { n:dueToday.length, l:"Dues aujourd'hui", icon:"ti-clock", c:C.amber.text, bg:C.amber.bg },
+    { n:dueToday.length, l:"Échéance aujourd'hui", icon:"ti-clock", c:C.amber.text, bg:C.amber.bg },
     { n:recurring.length,l:"Récurrentes",icon:"ti-refresh",     c:C.green.text, bg:C.green.bg },
   ];
 
