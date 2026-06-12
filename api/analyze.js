@@ -1,7 +1,7 @@
 // api/analyze.js — Proxy serverless vers l'API Anthropic
 // Tourne côté serveur Vercel, la clé API n'est jamais exposée au navigateur
 
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "";
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://bchl-noteflow.vercel.app";
 const MAX_TEXT_LENGTH = 5000;
 const ACCEPTED_MIME   = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
