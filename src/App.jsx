@@ -885,6 +885,7 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
   const [loading, setLoading]     = useState(false);
   const [result, setResult]       = useState(null);
   const [error, setError]         = useState(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrence, setRecurrence]   = useState("monthly");
   const taRef = useRef();
@@ -908,8 +909,38 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
       });
       if (!resp.ok) throw new Error(`Erreur ${resp.status}`);
       setResult(await resp.json());
-    } catch { setError("Impossible d'analyser la note. Vérifie ta connexion."); }
+    } catch(err) {
+      const msg = err?.message || "Erreur inconnue";
+      setError(msg);
+      setShowErrorModal(true);
+    }
     setLoading(false);
+  }
+
+  async function handleSaveWithoutAnalysis() {
+    const newNote = {
+      title: text.split("\n")[0].slice(0, 80) || "Note sans titre",
+      body: text,
+      raw: text,
+      category: Object.keys(cats)[0] || "général",
+      priority: "medium",
+      due: null,
+      dueLabel: null,
+      dueUrgent: false,
+      actions: [],
+      corrected: text,
+      createdAt: new Date().toISOString(),
+      done: false,
+      id: USE_MOCK ? Date.now() : undefined,
+      space,
+      isRecurring,
+      recurrence: isRecurring ? recurrence : null,
+      recurrenceDay: recurrence === "monthly" ? 1 : null,
+    };
+    if (!USE_MOCK) { const saved = await createNote(newNote, space); onSave(saved); }
+    else onSave(newNote);
+    setText(""); setResult(null); setIsRecurring(false);
+    setShowErrorModal(false); setError(null);
   }
 
   async function handleSave() {
@@ -992,10 +1023,45 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
           Analyse en cours…
         </div>
       )}
-      {error && (
-        <div style={{ padding:"10px 14px", background:C.red.bg, color:C.red.text,
-          borderRadius:8, fontSize:13 }}>
-          <i className="ti ti-alert-triangle" aria-hidden="true" style={{marginRight:6}} />{error}
+      {showErrorModal && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", zIndex:200,
+          display:"flex", alignItems:"center", justifyContent:"center" }}
+          onClick={() => setShowErrorModal(false)}>
+          <div style={{ background:"var(--nf-bg-primary)", border:"0.5px solid var(--nf-border)",
+            borderRadius:16, padding:"24px", width:400, maxWidth:"90vw",
+            display:"flex", flexDirection:"column", gap:16 }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:36, height:36, borderRadius:10, background:C.red.bg,
+                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                <i className="ti ti-alert-triangle" style={{ color:C.red.text, fontSize:18 }} />
+              </div>
+              <div>
+                <div style={{ fontWeight:600, fontSize:15, color:"var(--nf-text-primary)" }}>
+                  Analyse IA indisponible
+                </div>
+                <div style={{ fontSize:12, color:"var(--nf-text-tertiary)", marginTop:2 }}>
+                  L'analyse n'a pas pu aboutir
+                </div>
+              </div>
+            </div>
+            <div style={{ background:C.red.bg, borderRadius:8, padding:"10px 14px",
+              fontSize:12, color:C.red.text, fontFamily:"monospace", wordBreak:"break-word" }}>
+              {error}
+            </div>
+            <div style={{ fontSize:13, color:"var(--nf-text-secondary)" }}>
+              Vous pouvez malgré tout enregistrer votre note telle quelle, sans analyse ni catégorisation automatique.
+            </div>
+            <div style={{ display:"flex", gap:10, justifyContent:"flex-end" }}>
+              <button className="nf-btn-ghost" onClick={() => setShowErrorModal(false)}>
+                Annuler
+              </button>
+              <button className="nf-btn-primary" onClick={handleSaveWithoutAnalysis}>
+                <i className="ti ti-device-floppy" aria-hidden="true" />
+                Enregistrer quand même
+              </button>
+            </div>
+          </div>
         </div>
       )}
       {result && (
