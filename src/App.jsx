@@ -230,6 +230,18 @@ function RecurringBadge({ recurrence }) {
   );
 }
 
+function AiPendingBadge() {
+  return (
+    <span style={{ display:"inline-flex", alignItems:"center", gap:3, fontSize:10,
+      padding:"1px 7px", borderRadius:20, fontWeight:600, letterSpacing:"0.3px",
+      background:"var(--nf-amber-bg)", color:"var(--nf-amber-text)" }}
+      title="Enregistrée sans analyse IA">
+      <i className="ti ti-sparkles" aria-hidden="true" style={{fontSize:11}} />
+      IA en attente
+    </span>
+  );
+}
+
 // ─── Space Switcher ───────────────────────────────────────────────────────────
 function SpaceSwitcher({ space, onChange }) {
   return (
@@ -264,6 +276,7 @@ function NoteCard({ note, onClick, cats, showSpace }) {
           {note.title}
         </div>
         {note.isRecurring && <RecurringBadge recurrence={note.recurrence} />}
+        {note.analyzed === false && <AiPendingBadge />}
         {showSpace && <SpacePill space={note.space} />}
       </div>
       {isDone ? (
@@ -376,15 +389,43 @@ function EditModal({ note, cats, onSave, onClose, onCatCreated }) {
   const [due, setDue]           = useState(note.due || null);
   const [dueLabel, setDueLabel] = useState(note.dueLabel || "Pas d'échéance");
   const [dueUrgent, setDueUrgent] = useState(note.dueUrgent || false);
+  const [actions, setActions]   = useState(note.actions || []);
+  const [analyzed, setAnalyzed] = useState(note.analyzed !== false);
   const [saving, setSaving]     = useState(false);
+  const [analyzing, setAnalyzing]   = useState(false);
+  const [analyzeError, setAnalyzeError] = useState(null);
 
   function handleDueChange({ due: d, dueLabel: l, dueUrgent: u }) {
     setDue(d); setDueLabel(l); setDueUrgent(u);
   }
 
+  async function handleAnalyze() {
+    const source = (note.raw || body || title).trim();
+    if (!source) return;
+    setAnalyzing(true); setAnalyzeError(null);
+    try {
+      const resp = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: source, space: note.space, categories: Object.keys(cats) })
+      });
+      if (!resp.ok) throw new Error(`Erreur ${resp.status}`);
+      const result = await resp.json();
+      setTitle(result.title);
+      setBody(result.body);
+      setCategory(result.category);
+      setPriority(result.priority);
+      setDueLabel(result.dueLabel || "Pas d'échéance");
+      setDueUrgent(!!result.dueUrgent);
+      setActions(result.actions || []);
+      setAnalyzed(true);
+    } catch { setAnalyzeError("Impossible d'analyser la note. Vérifie ta connexion."); }
+    setAnalyzing(false);
+  }
+
   async function handleSave() {
     setSaving(true);
-    await onSave(note.id, { ...note, title, body, category, priority, due, dueLabel, dueUrgent });
+    await onSave(note.id, { ...note, title, body, category, priority, due, dueLabel, dueUrgent, actions, analyzed });
     setSaving(false);
   }
 
@@ -434,10 +475,38 @@ function EditModal({ note, cats, onSave, onClose, onCatCreated }) {
           <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Échéance</label>
           <DuePicker due={due} dueLabel={dueLabel} dueUrgent={dueUrgent} onChange={handleDueChange} />
         </div>
-        <div style={{ display:"flex", gap:8, marginTop:4 }}>
+        {actions.length > 0 && (
+          <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+            <label style={{ fontSize:12, color:"var(--nf-text-tertiary)" }}>Actions suggérées</label>
+            {actions.map((a, i) => (
+              <input key={i} className="nf-input" value={a}
+                onChange={e => setActions(prev => prev.map((ac, idx) => idx === i ? e.target.value : ac))}
+                style={{ fontSize:13 }} />
+            ))}
+          </div>
+        )}
+        {!analyzed && (
+          <div style={{ padding:"9px 12px", background:"var(--nf-amber-bg)",
+            color:"var(--nf-amber-text)", borderRadius:8, fontSize:12,
+            display:"flex", alignItems:"center", gap:6 }}>
+            <i className="ti ti-sparkles" aria-hidden="true" />
+            Note enregistrée sans analyse IA.
+          </div>
+        )}
+        {analyzeError && (
+          <div style={{ padding:"9px 12px", background:C.red.bg, color:C.red.text,
+            borderRadius:8, fontSize:12 }}>
+            <i className="ti ti-alert-triangle" aria-hidden="true" style={{marginRight:6}} />{analyzeError}
+          </div>
+        )}
+        <div style={{ display:"flex", gap:8, marginTop:4, flexWrap:"wrap" }}>
           <button onClick={handleSave} className="nf-btn-primary" disabled={saving}>
             <i className="ti ti-device-floppy" aria-hidden="true" />
             {saving ? "Sauvegarde…" : "Sauvegarder"}
+          </button>
+          <button onClick={handleAnalyze} className="nf-btn-ghost" disabled={analyzing}>
+            <i className="ti ti-sparkles" aria-hidden="true" />
+            {analyzing ? "Analyse…" : analyzed ? "Ré-analyser avec l'IA" : "Analyser avec l'IA"}
           </button>
           <button onClick={onClose} className="nf-btn-ghost">Annuler</button>
         </div>
@@ -842,7 +911,22 @@ function NoteDetail({ note, cats, onClose, onMarkDone, onEdit, onDelete }) {
           <Prio priority={note.priority} />
           {note.dueLabel && <DueBadge label={note.dueLabel} urgent={note.dueUrgent} />}
           {note.isRecurring && <RecurringBadge recurrence={note.recurrence} />}
+          {note.analyzed === false && <AiPendingBadge />}
         </div>
+        {note.analyzed === false && (
+          <div style={{ marginBottom:16, padding:"10px 14px",
+            background:"var(--nf-amber-bg)", borderRadius:8,
+            fontSize:13, color:"var(--nf-amber-text)",
+            display:"flex", alignItems:"center", gap:8 }}>
+            <i className="ti ti-sparkles" aria-hidden="true" style={{fontSize:16}} />
+            Cette note a été enregistrée sans analyse IA.
+            <button onClick={() => onEdit(note)} style={{ background:"none", border:"none",
+              cursor:"pointer", color:"inherit", textDecoration:"underline", fontSize:13,
+              fontFamily:"inherit", padding:0, marginLeft:"auto" }}>
+              Analyser maintenant
+            </button>
+          </div>
+        )}
         {note.isRecurring && note.done && note.nextDue && (
           <div style={{ marginBottom:16, padding:"10px 14px",
             background:"var(--nf-green-bg)", borderRadius:8,
@@ -887,6 +971,7 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
   const [error, setError]         = useState(null);
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrence, setRecurrence]   = useState("monthly");
+  const [savingRaw, setSavingRaw]     = useState(false);
   const taRef = useRef();
 
   useEffect(() => { taRef.current?.focus(); }, []);
@@ -921,10 +1006,33 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
       id: USE_MOCK ? Date.now() : undefined, space,
       isRecurring, recurrence: isRecurring ? recurrence : null,
       recurrenceDay: recurrence === "monthly" ? 1 : null,
+      analyzed: true,
     };
     if (!USE_MOCK) { const saved = await createNote(newNote, space); onSave(saved); }
     else onSave(newNote);
     setText(""); setResult(null); setIsRecurring(false);
+  }
+
+  async function handleSaveWithoutAnalysis() {
+    if (!text.trim()) { taRef.current?.focus(); return; }
+    setSavingRaw(true);
+    const firstLine = text.trim().split("\n")[0];
+    const title = firstLine.length > 80 ? firstLine.slice(0, 77) + "…" : firstLine;
+    const newNote = {
+      raw:text, title, body:text.trim(),
+      category: Object.keys(cats)[0] || "",
+      priority:"moyenne",
+      due:null, dueLabel:"Pas d'échéance", dueUrgent:false,
+      actions:[],
+      createdAt:new Date().toISOString(), done:false,
+      id: USE_MOCK ? Date.now() : undefined, space,
+      isRecurring, recurrence: isRecurring ? recurrence : null,
+      recurrenceDay: recurrence === "monthly" ? 1 : null,
+      analyzed: false,
+    };
+    if (!USE_MOCK) { const saved = await createNote(newNote, space); onSave(saved); }
+    else onSave(newNote);
+    setText(""); setResult(null); setIsRecurring(false); setSavingRaw(false);
   }
 
   return (
@@ -947,6 +1055,13 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
           <span style={{ fontSize:12, color:"var(--nf-text-tertiary)", flex:1 }}>
             Parle naturellement — l'IA s'occupe du reste
           </span>
+          <button onClick={handleSaveWithoutAnalysis} disabled={loading || savingRaw || !text.trim()}
+            className="nf-btn-ghost"
+            style={{ opacity: !text.trim() ? 0.45 : 1, cursor: !text.trim() ? "not-allowed" : "pointer" }}
+            title="Enregistrer la note telle quelle, sans passer par l'IA">
+            <i className="ti ti-device-floppy" aria-hidden="true" />
+            {savingRaw ? "Enregistrement…" : "Enregistrer sans IA"}
+          </button>
           <button onClick={analyze} disabled={loading || !text.trim()} className="nf-btn-primary"
             style={{ opacity: !text.trim() ? 0.45 : 1, cursor: !text.trim() ? "not-allowed" : "pointer" }}>
             <i className="ti ti-sparkles" aria-hidden="true" />
@@ -994,8 +1109,15 @@ function ComposeView({ space, cats, onSave, onCatCreated }) {
       )}
       {error && (
         <div style={{ padding:"10px 14px", background:C.red.bg, color:C.red.text,
-          borderRadius:8, fontSize:13 }}>
-          <i className="ti ti-alert-triangle" aria-hidden="true" style={{marginRight:6}} />{error}
+          borderRadius:8, fontSize:13, display:"flex", alignItems:"center", gap:10, flexWrap:"wrap" }}>
+          <span style={{ flex:1, minWidth:200 }}>
+            <i className="ti ti-alert-triangle" aria-hidden="true" style={{marginRight:6}} />{error}
+          </span>
+          <button onClick={handleSaveWithoutAnalysis} disabled={savingRaw}
+            className="nf-btn-ghost" style={{ fontSize:12, padding:"5px 11px" }}>
+            <i className="ti ti-device-floppy" aria-hidden="true" />
+            {savingRaw ? "Enregistrement…" : "Enregistrer quand même"}
+          </button>
         </div>
       )}
       {result && (

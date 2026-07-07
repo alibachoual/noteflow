@@ -38,6 +38,7 @@ export async function updateNote(id, fields) {
       due_label:  fields.dueLabel  ?? null,
       due_urgent: fields.dueUrgent ?? false,
       actions:    fields.actions   ?? [],
+      analyzed:   fields.analyzed  ?? true,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id).select().single();
@@ -213,6 +214,7 @@ function dbToNote(row) {
     dueLabel:      row.due_label ?? "Pas d'échéance",
     dueUrgent:     row.due_urgent,
     actions:       row.actions ?? [],
+    analyzed:      row.analyzed ?? true,
     done:          row.done,
     doneAt:        row.done_at ?? null,
     nextDue:       row.next_due ?? null,
@@ -236,6 +238,7 @@ function noteToDb(note, userId, space) {
     due_label:     note.dueLabel ?? null,
     due_urgent:    note.dueUrgent ?? false,
     actions:       note.actions ?? [],
+    analyzed:      note.analyzed ?? true,
     is_recurring:  note.isRecurring ?? false,
     recurrence:    note.recurrence ?? null,
     recurrence_day:note.recurrenceDay ?? null,
